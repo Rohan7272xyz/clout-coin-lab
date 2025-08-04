@@ -1,33 +1,58 @@
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAuth } from "@/lib/auth/auth-context";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Wallet } from "lucide-react";
+import { Zap } from "lucide-react";
 
 const Header = () => {
   return (
     <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
+      <div className="container mx-auto px-4 py-4 flex justify-center">
+        <div className="flex items-center gap-x-14 mx-auto">
+
+        <a href="/" className="flex items-center space-x-2 group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+          <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center transition-transform group-hover:scale-105">
             <span className="text-primary-foreground font-bold text-lg">P</span>
           </div>
-          <span className="text-xl font-bold">Publicly</span>
-        </div>
+          <span className="text-xl font-bold group-hover:underline">Publicly</span>
+        </a>
         
-        <nav className="hidden md:flex items-center space-x-8">
-          <a href="#trending" className="text-gray-light hover:text-foreground transition-colors">
+        <nav className="hidden md:flex items-center space-x-12">
+          <Link to="/trending" className="text-gray-light hover:text-foreground transition-colors">
             Trending
-          </a>
-          <a href="#how-it-works" className="text-gray-light hover:text-foreground transition-colors">
+          </Link>
+          <Link to="/#how-it-works" className="text-gray-light hover:text-foreground transition-colors">
             How it Works
-          </a>
-          <a href="#about" className="text-gray-light hover:text-foreground transition-colors">
+          </Link>
+          <Link to="/#about" className="text-gray-light hover:text-foreground transition-colors">
             About
-          </a>
+          </Link>
         </nav>
         
-        <Button variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground neon-glow">
-          <Wallet className="w-4 h-4 mr-2" />
-          Connect Wallet
-        </Button>
+        <div className="flex items-center gap-6">
+          <ConnectButton.Custom>
+            {({ openConnectModal }) => (
+              <Button
+                variant="wallet"
+                size="lg"
+                className="px-6 py-2 font-semibold"
+                onClick={openConnectModal}
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Connect Wallet
+              </Button>
+            )}
+          </ConnectButton.Custom>
+          <Button
+            variant="outline"
+            size="lg"
+            className="px-6 py-2 font-semibold border-primary text-primary hover:bg-primary hover:text-primary-foreground neon-glow"
+            asChild
+          >
+            <a href="/signin">Sign In</a>
+          </Button>
+        </div>
+      </div>
       </div>
     </header>
   );

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Zap } from "lucide-react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 const HeroSection = () => {
   return (
@@ -12,7 +13,7 @@ const HeroSection = () => {
       <div className="absolute top-40 right-20 w-3 h-3 bg-primary/60 rounded-full animate-pulse delay-300"></div>
       <div className="absolute bottom-40 left-20 w-1 h-1 bg-primary rounded-full animate-pulse delay-700"></div>
       
-      <div className="container mx-auto px-4 text-center relative z-10">
+      <div className="relative bottom-5 container mx-auto px-4 text-center relative z-10">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-6xl md:text-8xl font-black mb-6 bg-gradient-to-r from-foreground via-foreground to-primary bg-clip-text text-transparent">
             Invest in People.
@@ -31,14 +32,19 @@ const HeroSection = () => {
               Browse Trending Coins
             </Button>
             
-            <Button 
-              variant="outline" 
-              size="lg"
-              className="border-primary text-primary hover:bg-primary hover:text-primary-foreground text-lg px-8 py-4 h-auto font-semibold"
-            >
-              <Zap className="w-5 h-5 mr-2" />
-              Connect Wallet
-            </Button>
+            <ConnectButton.Custom>
+              {({ openConnectModal }) => (
+                <Button
+                  variant="wallet"
+                  size="lg"
+                  className="px-8 py-4 h-auto font-semibold"
+                  onClick={openConnectModal}
+                >
+                  <Zap className="w-5 h-5 mr-2" />
+                  Connect Wallet
+                </Button>
+              )}
+            </ConnectButton.Custom>
           </div>
           
           <div className="mt-12 flex justify-center items-center space-x-8 text-sm text-gray-muted">
