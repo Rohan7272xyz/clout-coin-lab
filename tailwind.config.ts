@@ -18,6 +18,9 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				sans: ['DM Sans', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -52,6 +55,12 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				// Custom crypto theme colors
+				'neon-green': 'hsl(var(--neon-green))',
+				'crypto-dark': 'hsl(var(--crypto-dark))',
+				'crypto-darker': 'hsl(var(--crypto-darker))',
+				'gray-muted': 'hsl(var(--gray-muted))',
+				'gray-light': 'hsl(var(--gray-light))',
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
