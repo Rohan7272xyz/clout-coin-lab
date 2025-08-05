@@ -4,7 +4,7 @@ const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
 const router = express.Router();
-const db = require('../db/db');
+const db = require('../database/db');
 const admin = require('firebase-admin');
 
 // --- Environment Config ---
@@ -15,7 +15,7 @@ const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI;
 // Initialize Firebase Admin SDK if not already done
 if (!admin.apps.length) {
   admin.initializeApp({
-    credential: admin.credential.cert(require('./tokenfactory-backendserviceacc.json')),
+    credential: admin.credential.cert(require('../backendservice.json')),
   });
 }
 
