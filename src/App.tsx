@@ -7,6 +7,8 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import SignIn from "./pages/SignIn";
 import Trending from "./pages/Trending";
+import PreInvest from "./pages/PreInvest";
+import Influencers from "./pages/Influencers";
 import { WagmiConfig } from "wagmi";
 import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { config } from "./wagmiConfig";
@@ -29,6 +31,8 @@ const App = () => (
                 <Route path="/" element={<Index />} />
                 <Route path="/signin" element={<SignIn />} />
                 <Route path="/trending" element={<Trending />} />
+                <Route path="/pre-invest" element={<PreInvest />} />
+                <Route path="/influencers" element={<Influencers />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

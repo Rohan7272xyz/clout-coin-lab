@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Zap } from "lucide-react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useNavigate } from "react-router-dom";
 
 const HeroSection = () => {
+  const navigate = useNavigate();
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background chart lines */}
@@ -27,9 +30,10 @@ const HeroSection = () => {
             <Button 
               size="lg" 
               className="bg-primary text-primary-foreground hover:bg-primary/90 neon-glow-strong text-lg px-8 py-4 h-auto font-semibold"
+              onClick={() => navigate('/pre-invest')}
             >
               <TrendingUp className="w-5 h-5 mr-2" />
-              Browse Trending Coins
+              Pre-Invest Now!
             </Button>
             
             <ConnectButton.Custom>
