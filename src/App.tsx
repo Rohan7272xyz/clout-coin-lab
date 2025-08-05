@@ -9,12 +9,12 @@ import SignIn from "./pages/SignIn";
 import Trending from "./pages/Trending";
 import PreInvest from "./pages/PreInvest";
 import Influencers from "./pages/Influencers";
+import CoinDetail from "./pages/CoinDetail";
 import { WagmiConfig } from "wagmi";
 import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { config } from "./wagmiConfig";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import ScrollToTop from "@/components/ScrollToTop";
-import DatabaseTest from '@/components/DatabaseText'
 
 const queryClient = new QueryClient();
 
@@ -34,6 +34,7 @@ const App = () => (
                 <Route path="/trending" element={<Trending />} />
                 <Route path="/pre-invest" element={<PreInvest />} />
                 <Route path="/influencers" element={<Influencers />} />
+                <Route path="/coin/:id" element={<CoinDetail />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
