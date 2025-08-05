@@ -1,9 +1,21 @@
+// src/wagmiConfig.ts - Updated with environment variables
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
-import { base, mainnet, polygon } from 'wagmi/chains';
+import { base, mainnet, polygon, sepolia } from 'wagmi/chains';
+
+const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
+
+if (!projectId) {
+  throw new Error('VITE_WALLETCONNECT_PROJECT_ID is required');
+}
 
 export const config = getDefaultConfig({
-  appName: 'Meme Token Launcher',
-  projectId: '7fbb746bd60b20cddfac272de0e92aaf', // get from cloud.walletconnect.com
-  chains: [base, mainnet, polygon],
+  appName: 'Token Factory',
+  projectId,
+  chains: [
+    mainnet,
+    base,
+    polygon,
+    ...(import.meta.env.DEV ? [sepolia] : []) // Include testnets in development
+  ],
   ssr: false,
 });

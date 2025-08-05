@@ -1,6 +1,22 @@
-// src/lib/auth/sync.ts
-import axios from 'axios';
+// src/lib/auth/sync.ts - Updated to use new API client
 import { getAuth } from 'firebase/auth';
+import { authApi } from '@/lib/api';
+
+export interface SyncUserResponse {
+  success: boolean;
+  user: {
+    id: number;
+    wallet_address: string;
+    email: string;
+    display_name: string;
+    profile_picture_url?: string;
+    created_at: string;
+  };
+}
+
+// src/lib/auth/sync.ts - Updated to use new API client
+import { getAuth } from 'firebase/auth';
+import { authApi } from '@/lib/api';
 
 export interface SyncUserResponse {
   success: boolean;
@@ -25,7 +41,6 @@ export async function syncUserToBackend(additionalData?: {
   }
 
   try {
-    const idToken = await user.getIdToken();
     const payload = {
       wallet_address: additionalData?.wallet_address || user.uid,
       email: user.email,
@@ -33,18 +48,8 @@ export async function syncUserToBackend(additionalData?: {
       profile_picture_url: additionalData?.profile_picture_url || user.photoURL,
     };
 
-    const response = await axios.post<SyncUserResponse>(
-      'http://localhost:3000/api/auth/sync', 
-      payload, 
-      {
-        headers: { 
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    return response.data;
+    const response = await authApi.syncUser(payload) as SyncUserResponse;
+    return response;
   } catch (error) {
     console.error('Error syncing user to backend:', error);
     throw error;
@@ -61,19 +66,21 @@ export async function updateUserProfile(updates: {
   }
 
   try {
-    const idToken = await user.getIdToken();
-    const response = await axios.put(
-      `http://localhost:3000/api/auth/user/${user.uid}`,
-      updates,
-      {
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    // Using the simplified API client
+    const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/auth/user/${user.uid}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${await user.getIdToken()}`
+      },
+      body: JSON.stringify(updates)
+    });
 
-    return response.data;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
   } catch (error) {
     console.error('Error updating user profile:', error);
     throw error;

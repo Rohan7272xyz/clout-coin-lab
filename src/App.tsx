@@ -1,8 +1,9 @@
+// src/App.tsx - Fixed routing configuration
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, HashRouter } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import SignIn from "./pages/SignIn";
@@ -35,7 +36,7 @@ const App = () => (
                 <Route path="/pre-invest" element={<PreInvest />} />
                 <Route path="/influencers" element={<Influencers />} />
                 <Route path="/coin/:id" element={<CoinDetail />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                {/* Catch-all route must be last */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
