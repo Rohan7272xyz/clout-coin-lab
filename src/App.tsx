@@ -14,6 +14,7 @@ import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { config } from "./wagmiConfig";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import ScrollToTop from "@/components/ScrollToTop";
+import DatabaseTest from '@/components/DatabaseText'
 
 const queryClient = new QueryClient();
 
