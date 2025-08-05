@@ -11,10 +11,7 @@ const Header = () => {
         <div className="flex items-center gap-x-14 mx-auto">
 
         <a href="/" className="flex items-center space-x-2 group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
-          <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center transition-transform group-hover:scale-105">
-            <span className="text-primary-foreground font-bold text-lg">P</span>
-          </div>
-          <span className="text-xl font-bold group-hover:underline">Publicly</span>
+          <span className="text-xl font-bold group-hover:underline">CoinFluence</span>
         </a>
         
         <nav className="hidden md:flex items-center space-x-12">

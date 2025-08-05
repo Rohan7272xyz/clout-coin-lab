@@ -7,10 +7,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-2">
             <div className="flex items-center space-x-2 mb-4">
-              <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">P</span>
-              </div>
-              <span className="text-xl font-bold">Publicly</span>
+              <span className="text-xl font-bold">CoinFluence</span>
             </div>
             <p className="text-gray-light mb-4 max-w-md">
               The first platform to let you invest in people. Back trending influencers with meme coins and profit from their success.
@@ -54,7 +51,7 @@ const Footer = () => {
         
         <div className="border-t border-border mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-gray-light text-sm">
-            © 2024 Publicly. All rights reserved. Invest responsibly.
+            2024 CoinFluence. All rights reserved. Invest responsibly.
           </p>
           <p className="text-gray-light text-xs mt-2 md:mt-0">
             Not financial advice. Crypto investments are high risk.
