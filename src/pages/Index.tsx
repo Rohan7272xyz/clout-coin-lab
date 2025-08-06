@@ -14,7 +14,14 @@ const Index = () => {
       if (window.location.hash) {
         const el = document.querySelector(window.location.hash);
         if (el) {
-          el.scrollIntoView({ behavior: "smooth" });
+          // Adjust for sticky header height
+          const header = document.querySelector('header');
+          const headerHeight = header ? header.offsetHeight : 0;
+          const elementTop = el.getBoundingClientRect().top + window.scrollY;
+          window.scrollTo({
+            top: elementTop - headerHeight - 24, // 24px extra for spacing
+            behavior: "smooth"
+          });
         }
       }
     };

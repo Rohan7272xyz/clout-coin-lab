@@ -70,17 +70,17 @@ const PreInvest = () => {
   const navigate = useNavigate();
   const featuredInfluencersRef = useRef<HTMLElement>(null);
 
-  // Auto-scroll to featured influencers when wallet connects
-  useEffect(() => {
-    if (isConnected && featuredInfluencersRef.current) {
-      setTimeout(() => {
-        featuredInfluencersRef.current?.scrollIntoView({ 
-          behavior: "smooth",
-          block: "start"
-        });
-      }, 500); // Small delay to let the UI update
-    }
-  }, [isConnected]);
+// Auto-scroll to featured influencers when wallet connects
+useEffect(() => {
+  if (isConnected && featuredInfluencersRef.current) {
+    setTimeout(() => {
+      featuredInfluencersRef.current?.scrollIntoView({ 
+        behavior: "smooth",
+        block: "center"
+      });
+    }, 200); // Small delay to let the UI update
+  }
+}, [isConnected]);
 
   const handleEarlyAccess = (e: React.FormEvent) => {
     e.preventDefault();

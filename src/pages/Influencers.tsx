@@ -191,7 +191,7 @@ const Influencers = () => {
     <div className="min-h-screen bg-black text-white">
       <Header />
       
-      <main className="pt-16 min-h-screen flex flex-col">
+      <main className="min-h-screen flex flex-col">
         {/* Premium Header with Animation */}
         <section className="py-8">
           <div className="container mx-auto px-4">
@@ -261,7 +261,7 @@ const Influencers = () => {
                   {/* Hot Badge */}
                   {influencer.isHot && (
                     <div className="absolute top-3 left-3 z-10">
-                      <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs animate-pulse">
+                      <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs animate-fade-in">
                         🔥 Hot
                       </Badge>
                     </div>
@@ -277,8 +277,8 @@ const Influencers = () => {
                           : 'border-yellow-500/50 text-yellow-500 bg-yellow-500/10'
                       }`}
                     >
-                      <div className={`w-2 h-2 rounded-full mr-1 ${
-                        influencer.isLive ? 'bg-primary animate-pulse' : 'bg-yellow-500 animate-pulse'
+                      <div className={`w-2 h-2 rounded-full mr-1 transition-transform duration-500 ${
+                        influencer.isLive ? 'bg-primary scale-110 shadow-lg shadow-primary/30' : 'bg-yellow-500 scale-100'
                       }`} />
                       {influencer.isLive ? 'Live' : 'Soon'}
                     </Badge>
@@ -302,7 +302,7 @@ const Influencers = () => {
                       )}
                       {/* Glow effect for hot influencers */}
                       {influencer.isHot && (
-                        <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                        <div className="absolute inset-0 rounded-full bg-primary/20 animate-fade-in" />
                       )}
                     </div>
                     
