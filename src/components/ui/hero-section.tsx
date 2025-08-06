@@ -1,10 +1,19 @@
+// src/components/ui/hero-section.tsx - Updated to use both wallet and auth states
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Zap } from "lucide-react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useNavigate } from "react-router-dom";
+import { useAccount } from "wagmi";
+import { useAuth } from "@/lib/auth/auth-context";
 
 const HeroSection = () => {
   const navigate = useNavigate();
+  const { isConnected } = useAccount();
+  const { firebaseUser } = useAuth();
+
+  const handlePreInvestClick = () => {
+    navigate('/pre-invest');
+  };
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -30,24 +39,83 @@ const HeroSection = () => {
             <Button 
               size="lg" 
               className="bg-primary text-primary-foreground hover:bg-primary/90 neon-glow-strong text-lg px-8 py-4 h-auto font-semibold"
-              onClick={() => navigate('/pre-invest')}
+              onClick={handlePreInvestClick}
             >
               <TrendingUp className="w-5 h-5 mr-2" />
               Pre-Invest Now!
             </Button>
             
             <ConnectButton.Custom>
-              {({ openConnectModal }) => (
-                <Button
-                  variant="wallet"
-                  size="lg"
-                  className="px-8 py-4 h-auto font-semibold"
-                  onClick={openConnectModal}
-                >
-                  <Zap className="w-5 h-5 mr-2" />
-                  Connect Wallet
-                </Button>
-              )}
+              {({ 
+                account, 
+                chain, 
+                openAccountModal, 
+                openChainModal, 
+                openConnectModal, 
+                authenticationStatus, 
+                mounted 
+              }) => {
+                // Make sure the component is mounted and ready
+                const ready = mounted && authenticationStatus !== 'loading';
+                const connected = ready && account && chain && (!authenticationStatus || authenticationStatus === 'authenticated');
+
+                return (
+                  <div
+                    {...(!ready && {
+                      'aria-hidden': true,
+                      'style': {
+                        opacity: 0,
+                        pointerEvents: 'none',
+                        userSelect: 'none',
+                      },
+                    })}
+                  >
+                    {(() => {
+                      if (!connected) {
+                        return (
+                          <Button
+                            variant="wallet"
+                            size="lg"
+                            className="px-8 py-4 h-auto font-semibold text-lg"
+                            onClick={openConnectModal}
+                            type="button"
+                          >
+                            <Zap className="w-5 h-5 mr-2" />
+                            Connect Wallet
+                          </Button>
+                        );
+                      }
+
+                      if (chain.unsupported) {
+                        return (
+                          <Button
+                            variant="destructive"
+                            size="lg"
+                            className="px-8 py-4 h-auto font-semibold text-lg"
+                            onClick={openChainModal}
+                            type="button"
+                          >
+                            Wrong Network
+                          </Button>
+                        );
+                      }
+
+                      return (
+                        <Button
+                          variant="wallet"
+                          size="lg"
+                          className="px-8 py-4 h-auto font-semibold text-lg"
+                          onClick={openAccountModal}
+                          type="button"
+                        >
+                          <Zap className="w-5 h-5 mr-2" />
+                          Wallet Connected
+                        </Button>
+                      );
+                    })()}
+                  </div>
+                );
+              }}
             </ConnectButton.Custom>
           </div>
           

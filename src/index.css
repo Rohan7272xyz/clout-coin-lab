@@ -1,46 +1,192 @@
-/* FILE: src/index.css - Add to existing utilities section */
+/* FILE: src/index.css - Complete file with proper color scheme */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Crypto/Neon theme - Dark background with neon green accents */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+
+    --card: 0 0% 5%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 158 100% 50%; /* Neon green #00FF99 */
+    --primary-foreground: 0 0% 0%;
+
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 60%;
+
+    --accent: 158 100% 50%; /* Neon green accent */
+    --accent-foreground: 0 0% 0%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 20%;
+    --input: 0 0% 10%;
+    --ring: 158 100% 50%;
+
+    --radius: 0.75rem;
+
+    /* Custom crypto theme tokens */
+    --neon-green: 158 100% 50%;
+    --neon-glow: 158 100% 50%;
+    --crypto-dark: 0 0% 5%;
+    --crypto-darker: 0 0% 0%;
+    --gray-muted: 0 0% 40%;
+    --gray-light: 0 0% 60%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  /* Force dark theme for crypto theme */
+  .dark, body {
+    --background: 0 0% 0%; /* Pure black */
+    --foreground: 0 0% 100%; /* Pure white */
+    --card: 0 0% 5%; /* Very dark gray */
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 158 100% 50%; /* Keep neon green */
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 158 100% 50%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 20%;
+    --input: 0 0% 10%;
+    --ring: 158 100% 50%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    /* Force dark theme */
+    background-color: hsl(0 0% 0%) !important;
+    color: hsl(0 0% 100%) !important;
+  }
+
+  /* Ensure all main containers maintain black background */
+  .bg-background {
+    background-color: hsl(0 0% 0%) !important;
+  }
+
+  /* Ensure cards are dark */
+  .bg-card {
+    background-color: hsl(0 0% 5%) !important;
+  }
+}
+
+@layer components {
+  /* Neon glow effects */
+  .neon-glow {
+    box-shadow: 0 0 20px hsl(var(--neon-green) / 0.3);
+  }
+  
+  .neon-glow-strong {
+    box-shadow: 0 0 30px hsl(var(--neon-green) / 0.5), 0 0 60px hsl(var(--neon-green) / 0.2);
+  }
+  
+  .crypto-gradient {
+    background: linear-gradient(135deg, hsl(var(--crypto-darker)) 0%, hsl(var(--crypto-dark)) 100%);
+  }
+  
+  .chart-lines {
+    background-image: 
+      linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px),
+      linear-gradient(0deg, hsl(var(--border)) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.1;
+  }
+
+  /* Force dark theme for specific components */
+  .bg-zinc-900 {
+    background-color: rgb(24 24 27) !important; /* zinc-900 equivalent */
+  }
+
+  .border-zinc-800 {
+    border-color: rgb(39 39 42) !important; /* zinc-800 equivalent */
+  }
+
+  .text-gray-400 {
+    color: rgb(156 163 175) !important; /* gray-400 equivalent */
+  }
+
+  .text-gray-500 {
+    color: rgb(107 114 128) !important; /* gray-500 equivalent */
+  }
+}
 
 @layer utilities {
-  /* Professional, smooth animations with custom easing */
-  
-  /* Smooth fade-in with scale for premium feel */
-  @keyframes fadeInScale {
+  /* Professional animation system */
+  @keyframes fadeInUp {
     from {
-      opacity: 0;
-      transform: translateY(20px) scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-
-  /* Elegant slide-up with custom bezier curve */
-  @keyframes slideUpElegant {
-    from {
-      opacity: 0;
       transform: translateY(30px);
+      opacity: 0;
     }
     to {
-      opacity: 1;
       transform: translateY(0);
+      opacity: 1;
     }
   }
 
-  /* Subtle bounce for interactive elements */
-  @keyframes subtleBounce {
-    0%, 20%, 53%, 80%, 100% {
-      transform: translate3d(0,0,0);
+  @keyframes slideInUp {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
     }
-    40%, 43% {
-      transform: translate3d(0, -2px, 0);
+    to {
+      transform: translateY(0);
+      opacity: 1;
     }
-    70% {
-      transform: translate3d(0, -1px, 0);
+  }
+
+  /* Gentle fade-in for badges and overlays */
+  @keyframes fadeInSubtle {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
     }
-    90% {
-      transform: translate3d(0, -1px, 0);
+    to {
+      opacity: 1;
+      transform: scale(1);
     }
+  }
+
+  .animate-fade-in {
+    animation: fadeInSubtle 0.7s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  .animate-slide-in-up {
+    animation: slideInUp 0.6s ease-out forwards;
   }
 
   /* Custom easing curves for professional feel */
@@ -50,15 +196,6 @@
   
   .ease-out-quart {
     transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
-  }
-  
-  .ease-out-back {
-    transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-
-  /* Smooth scale transitions */
-  .scale-enter {
-    animation: fadeInScale 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   /* Professional card hover effects */
@@ -78,71 +215,25 @@
                 transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* Elegant pulse for status indicators */
-  .elegant-pulse {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  /* Force dark backgrounds where needed */
+  .bg-black {
+    background-color: hsl(0 0% 0%) !important;
   }
 
-  @keyframes pulse {
-    0%, 100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: .8;
-    }
+  .text-white {
+    color: hsl(0 0% 100%) !important;
   }
 
-  /* Professional stagger animation utility */
-  .stagger-animation {
-    opacity: 0;
-    transform: translateY(20px);
-    animation: slideUpElegant 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  /* Ensure primary green color is maintained */
+  .text-primary {
+    color: hsl(158 100% 50%) !important;
   }
 
-  /* Smooth backdrop blur animation */
-  .backdrop-blur-enter {
-    backdrop-filter: blur(0px);
-    transition: backdrop-filter 0.3s ease-out;
-  }
-  
-  .backdrop-blur-enter-active {
-    backdrop-filter: blur(8px);
+  .bg-primary {
+    background-color: hsl(158 100% 50%) !important;
   }
 
-  /* Text gradient animation for titles */
-  .gradient-shift {
-    background-size: 200% 200%;
-    animation: gradientShift 3s ease infinite;
-  }
-
-  @keyframes gradientShift {
-    0% {
-      background-position: 0% 50%;
-    }
-    50% {
-      background-position: 100% 50%;
-    }
-    100% {
-      background-position: 0% 50%;
-    }
-  }
-
-  /* Micro-interactions for buttons */
-  .button-press {
-    transition: transform 0.1s cubic-bezier(0.25, 1, 0.5, 1);
-  }
-  
-  .button-press:active {
-    transform: scale(0.98);
-  }
-
-  /* Smooth border transitions */
-  .border-glow {
-    transition: box-shadow 0.3s ease-out, border-color 0.3s ease-out;
-  }
-  
-  .border-glow:hover {
-    box-shadow: 0 0 20px rgba(0, 255, 153, 0.2);
-    border-color: rgba(0, 255, 153, 0.5);
+  .border-primary {
+    border-color: hsl(158 100% 50%) !important;
   }
 }

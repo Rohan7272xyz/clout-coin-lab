@@ -7,6 +7,8 @@ import TradingPanel from "@/components/trading/TradingPanel";
 import SecurityModal from "@/components/trading/SecurityModal";
 import CoinStats from "@/components/trading/CoinStats";
 import ContractInfo from "@/components/trading/ContractInfo";
+import { useNavigate } from "react-router-dom";
+
 
 // Mock data - replace with real API calls
 const mockCoinData = {
@@ -41,6 +43,7 @@ const mockCoinData = {
 };
 
 const CoinDetail = () => {
+  const navigate = useNavigate();
   const [coinData, setCoinData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
@@ -87,7 +90,12 @@ const CoinDetail = () => {
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-6xl mx-auto">
         {/* Back Button */}
-        <Button variant="ghost" size="sm" className="mb-6">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="mb-6"
+          onClick={() => navigate('/influencers')}
+        >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Influencers
         </Button>

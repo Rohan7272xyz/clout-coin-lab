@@ -1,3 +1,6 @@
+// FILE: src/pages/PreInvest.tsx
+// Updated with Rohini (poop) and TBD influencers
+
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,15 +23,15 @@ import {
   Clock
 } from "lucide-react";
 
-// Mock data for featured influencers
+// Updated featured influencers - First is Rohini, rest are TBD
 const featuredInfluencers = [
   {
     id: 1,
-    name: "CryptoKing",
-    handle: "@cryptoking",
+    name: "Rohini",
+    handle: "@rohini",
     followers: "2.4M",
     category: "Crypto",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
+    avatar: "💩", // poop emoji
     price: "$0.00",
     change: "+0%",
     description: "Leading crypto educator and market analyst",
@@ -37,27 +40,27 @@ const featuredInfluencers = [
   },
   {
     id: 2,
-    name: "TechGuru",
-    handle: "@techguru",
+    name: "TBD",
+    handle: "@tbd2",
     followers: "1.8M",
     category: "Technology",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
+    avatar: "?", // question mark
     price: "$0.00",
     change: "+0%",
-    description: "Silicon Valley insider and startup advisor",
+    description: "Upcoming tech influencer",
     verified: true,
     comingSoon: true
   },
   {
     id: 3,
-    name: "FitnessQueen",
-    handle: "@fitnessqueen",
+    name: "TBD",
+    handle: "@tbd3",
     followers: "3.1M",
     category: "Fitness",
-    avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
+    avatar: "?", // question mark
     price: "$0.00",
     change: "+0%",
-    description: "Wellness coach and lifestyle influencer",
+    description: "Upcoming fitness influencer",
     verified: true,
     comingSoon: true
   }
@@ -70,17 +73,22 @@ const PreInvest = () => {
   const navigate = useNavigate();
   const featuredInfluencersRef = useRef<HTMLElement>(null);
 
-// Auto-scroll to featured influencers when wallet connects
-useEffect(() => {
-  if (isConnected && featuredInfluencersRef.current) {
-    setTimeout(() => {
-      featuredInfluencersRef.current?.scrollIntoView({ 
-        behavior: "smooth",
-        block: "center"
-      });
-    }, 200); // Small delay to let the UI update
-  }
-}, [isConnected]);
+  // Auto-scroll to featured influencers when wallet connects
+  useEffect(() => {
+    if (isConnected && featuredInfluencersRef.current) {
+      setTimeout(() => {
+        // Get header height for proper offset calculation
+        const header = document.querySelector('header');
+        const headerHeight = header ? header.offsetHeight : 80; // fallback to 80px
+        
+        const elementTop = featuredInfluencersRef.current!.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo({
+          top: elementTop - headerHeight - 32, // 32px extra spacing
+          behavior: "smooth"
+        });
+      }, 500); // Small delay to let the UI update
+    }
+  }, [isConnected]);
 
   const handleEarlyAccess = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +101,7 @@ useEffect(() => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="pt-20">
+      <main className="pt-16">
         {/* Hero Section */}
         <section className="relative py-20 overflow-hidden">
           <div className="absolute inset-0 chart-lines"></div>
@@ -112,18 +120,25 @@ useEffect(() => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
+              {/* FILE: src/pages/PreInvest.tsx (lines ~85-105) */}
               {!isConnected ? (
                 <ConnectButton.Custom>
-                  {({ openConnectModal }) => (
-                    <Button
-                      size="lg"
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 neon-glow-strong text-lg px-8 py-4 h-auto font-semibold"
-                      onClick={openConnectModal}
-                    >
-                      <Zap className="w-5 h-5 mr-2" />
-                      Connect Wallet & Join Waitlist
-                    </Button>
-                  )}
+                  {({ account, chain, openConnectModal, mounted }) => {
+                    const ready = mounted;
+                    const connected = ready && account && chain;
+                    
+                    return (
+                      <Button
+                        size="lg"
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 neon-glow-strong text-lg px-8 py-4 h-auto font-semibold"
+                        onClick={openConnectModal}
+                        disabled={connected}
+                      >
+                        <Zap className="w-5 h-5 mr-2" />
+                        {connected ? "Wallet Connected" : "Connect Wallet & Join Waitlist"}
+                      </Button>
+                    );
+                  }}
                 </ConnectButton.Custom>
               ) : (
                 <Button
@@ -164,12 +179,19 @@ useEffect(() => {
               {featuredInfluencers.map((influencer) => (
                 <Card key={influencer.id} className="relative bg-card/80 border-border hover:border-primary/50 transition-all duration-300 group">
                   <CardHeader className="text-center">
+                    {/* Updated avatar rendering for Rohini vs TBD */}
                     <div className="relative w-20 h-20 mx-auto mb-4">
-                      <img
-                        src={influencer.avatar}
-                        alt={influencer.name}
-                        className="w-full h-full rounded-full object-cover"
-                      />
+                      {influencer.id === 1 ? (
+                        // Rohini gets a poop emoji in a circle
+                        <div className="w-full h-full rounded-full flex items-center justify-center bg-zinc-800 border-2 border-zinc-700">
+                          <span className="text-3xl">💩</span>
+                        </div>
+                      ) : (
+                        // All others get question mark
+                        <div className="w-full h-full rounded-full flex items-center justify-center bg-zinc-800 border-2 border-zinc-700">
+                          <span className="text-3xl text-gray-400">?</span>
+                        </div>
+                      )}
                       {influencer.verified && (
                         <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
                           <Check className="w-3 h-3 text-primary-foreground" />
