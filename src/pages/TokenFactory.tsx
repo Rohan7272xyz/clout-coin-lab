@@ -1,3 +1,4 @@
+// src/pages/TokenFactory.tsx
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,18 +19,472 @@ import {
   Users,
   Calendar
 } from "lucide-react";
-import { useAccount, useContractWrite, useContractRead, useWaitForTransaction } from "wagmi";
+import { useAccount, useWriteContract, useReadContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther, formatEther } from "viem";
+import { toast } from "@/components/ui/sonner";
 
-// Contract configuration
-const TOKEN_FACTORY_ADDRESS = "0x..."; // Deploy address goes here
+// Contract configuration - UPDATED with real deployed contract
+const TOKEN_FACTORY_ADDRESS = "0x18594f5d4761b9DBEA625dDeD86356F6D346A09a" as `0x${string}`;
+
+// Real ABI from deployed contract
 const TOKEN_FACTORY_ABI = [
-  // Add your contract ABI here
-  "function createCoin(string memory _name, string memory _symbol, string memory _influencerName, address _influencerWallet, uint256 _totalSupply) external payable returns (address)",
-  "function getAllCoins() external view returns (address[] memory)",
-  "function getFactoryInfo() external view returns (address, address, uint256, uint256)",
-  "function getTokensInfo(address[] memory _tokens) external view returns (string[] memory, string[] memory, string[] memory, address[] memory, uint256[] memory, uint256[] memory)"
-];
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_treasury",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_platform",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_creationFee",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableInvalidOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "treasury",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "platform",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "creationFee",
+        "type": "uint256"
+      }
+    ],
+    "name": "FactoryConfigUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tokenAddress",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "symbol",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "influencerName",
+        "type": "string"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "influencerWallet",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalSupply",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      }
+    ],
+    "name": "TokenCreated",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "allTokens",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_name",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_symbol",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_influencerName",
+        "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "_influencerWallet",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_totalSupply",
+        "type": "uint256"
+      }
+    ],
+    "name": "createCoin",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "creationFee",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "emergencyWithdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getAllCoins",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getFactoryInfo",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "_treasury",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_platform",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_creationFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_totalTokens",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_index",
+        "type": "uint256"
+      }
+    ],
+    "name": "getTokenByIndex",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getTokenCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_tokens",
+        "type": "address[]"
+      }
+    ],
+    "name": "getTokensInfo",
+    "outputs": [
+      {
+        "internalType": "string[]",
+        "name": "names",
+        "type": "string[]"
+      },
+      {
+        "internalType": "string[]",
+        "name": "symbols",
+        "type": "string[]"
+      },
+      {
+        "internalType": "string[]",
+        "name": "influencerNames",
+        "type": "string[]"
+      },
+      {
+        "internalType": "address[]",
+        "name": "influencerWallets",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "totalSupplies",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "launchTimes",
+        "type": "uint256[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "isFactoryToken",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "platform",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "tokenCreator",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "treasury",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_treasury",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_platform",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_creationFee",
+        "type": "uint256"
+      }
+    ],
+    "name": "updateFactoryConfig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+] as const;
 
 interface CreatedCoin {
   address: string;
@@ -60,46 +515,43 @@ const TokenFactoryDashboard = () => {
   const [lastCreatedCoin, setLastCreatedCoin] = useState<CreatedCoin | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Contract interactions
-  const { data: factoryInfo } = useContractRead({
+  // Contract reads using Wagmi v2
+  const { data: factoryInfo } = useReadContract({
     address: TOKEN_FACTORY_ADDRESS,
     abi: TOKEN_FACTORY_ABI,
     functionName: 'getFactoryInfo',
   });
 
-  const { data: allCoinsAddresses } = useContractRead({
+  const { data: allCoinsAddresses } = useReadContract({
     address: TOKEN_FACTORY_ADDRESS,
     abi: TOKEN_FACTORY_ABI,
     functionName: 'getAllCoins',
   });
 
+  // Contract write using Wagmi v2
   const { 
-    write: createCoin, 
+    writeContract: createCoin, 
     data: createCoinData,
     error: createCoinError,
-    isLoading: isCreateCoinLoading 
-  } = useContractWrite({
-    address: TOKEN_FACTORY_ADDRESS,
-    abi: TOKEN_FACTORY_ABI,
-    functionName: 'createCoin',
-  });
+    isPending: isCreateCoinLoading 
+  } = useWriteContract();
 
-  const { isLoading: isTransactionLoading, isSuccess: isTransactionSuccess } = useWaitForTransaction({
-    hash: createCoinData?.hash,
+  const { 
+    isLoading: isTransactionLoading, 
+    isSuccess: isTransactionSuccess 
+  } = useWaitForTransactionReceipt({
+    hash: createCoinData,
   });
 
   // Load created coins
   useEffect(() => {
     if (allCoinsAddresses && allCoinsAddresses.length > 0) {
-      // Fetch detailed info for all coins
-      // This would use the getTokensInfo function
-      // For now, we'll use mock data
       loadCoinsData(allCoinsAddresses);
     }
   }, [allCoinsAddresses]);
 
-  const loadCoinsData = async (addresses: string[]) => {
-    // Mock implementation - replace with actual contract call
+  const loadCoinsData = async (addresses: readonly `0x${string}`[]) => {
+    // For now using mock data - you can implement actual contract calls here
     const mockCoins: CreatedCoin[] = [
       {
         address: "0x123...abc",
@@ -137,28 +589,34 @@ const TokenFactoryDashboard = () => {
   const handleCreateCoin = async () => {
     if (!validateForm()) return;
     if (!isConnected) {
-      alert("Please connect your wallet first");
+      toast.error("Please connect your wallet first");
       return;
     }
 
     setIsCreating(true);
     
     try {
-      const creationFee = factoryInfo?.[2] || parseEther("0.01"); // Default fee
+      const creationFee = factoryInfo?.[2] || parseEther("0.01");
       
       await createCoin({
+        address: TOKEN_FACTORY_ADDRESS,
+        abi: TOKEN_FACTORY_ABI,
+        functionName: 'createCoin',
         args: [
           formData.name,
           formData.symbol,
           formData.influencerName,
-          formData.influencerWallet,
-          formData.totalSupply
+          formData.influencerWallet as `0x${string}`,
+          BigInt(formData.totalSupply)
         ],
         value: creationFee
       });
       
-    } catch (error) {
+      toast.success("Transaction submitted! Waiting for confirmation...");
+      
+    } catch (error: any) {
       console.error("Error creating coin:", error);
+      toast.error(error.message || "Failed to create token");
     } finally {
       setIsCreating(false);
     }
@@ -175,11 +633,13 @@ const TokenFactoryDashboard = () => {
         influencerWallet: formData.influencerWallet,
         totalSupply: formData.totalSupply,
         launchTime: Date.now(),
-        txHash: createCoinData.hash
+        txHash: createCoinData
       };
       
       setLastCreatedCoin(newCoin);
       setCreatedCoins(prev => [newCoin, ...prev]);
+      
+      toast.success(`Successfully created ${formData.name} (${formData.symbol})!`);
       
       // Reset form
       setFormData({
@@ -194,10 +654,11 @@ const TokenFactoryDashboard = () => {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard!");
   };
 
   const openEtherscan = (address: string) => {
-    window.open(`https://basescan.org/address/${address}`, '_blank');
+    window.open(`https://sepolia.basescan.org/address/${address}`, '_blank');
   };
 
   if (!isConnected) {
@@ -230,7 +691,10 @@ const TokenFactoryDashboard = () => {
             <h1 className="text-4xl font-black mb-2">
               Token <span className="text-primary">Factory</span>
             </h1>
-            <p className="text-gray-400 text-lg">Create and manage influencer tokens on Base L2</p>
+            <p className="text-gray-400 text-lg">Create and manage influencer tokens on Base Sepolia</p>
+            <div className="text-sm text-gray-500 mt-2">
+              Contract: {TOKEN_FACTORY_ADDRESS}
+            </div>
           </div>
 
           {/* Success Alert */}

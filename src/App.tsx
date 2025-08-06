@@ -1,4 +1,4 @@
-// src/App.tsx - Fixed routing configuration
+// src/App.tsx - Updated with Token Factory route
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,6 +11,7 @@ import Trending from "./pages/Trending";
 import PreInvest from "./pages/PreInvest";
 import Influencers from "./pages/Influencers";
 import CoinDetail from "./pages/CoinDetail";
+import TokenFactory from "./pages/TokenFactory";
 import { WagmiConfig } from "wagmi";
 import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { config } from "./wagmiConfig";
@@ -36,6 +37,7 @@ const App = () => (
                 <Route path="/pre-invest" element={<PreInvest />} />
                 <Route path="/influencers" element={<Influencers />} />
                 <Route path="/coin/:id" element={<CoinDetail />} />
+                <Route path="/admin/token-factory" element={<TokenFactory />} />
                 {/* Catch-all route must be last */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

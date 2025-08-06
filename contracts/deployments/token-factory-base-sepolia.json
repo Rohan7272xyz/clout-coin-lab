@@ -1,0 +1,9 @@
+{
+  "network": "base-sepolia",
+  "contractAddress": "0x18594f5d4761b9DBEA625dDeD86356F6D346A09a",
+  "treasury": "0x1234567890123456789012345678901234567890",
+  "platform": "0x0987654321098765432109876543210987654321",
+  "creationFee": "10000000000000000",
+  "deployedAt": "2025-08-06T02:31:31.674Z",
+  "deployer": "0x4A2bc44Cc67FF08Deba6C26dbFCe8fc5F9BC0a50"
+}
