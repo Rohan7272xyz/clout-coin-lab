@@ -1,20 +1,4 @@
-// src/lib/auth/sync.ts - Updated to use new API client
-import { getAuth } from 'firebase/auth';
-import { authApi } from '@/lib/api';
-
-export interface SyncUserResponse {
-  success: boolean;
-  user: {
-    id: number;
-    wallet_address: string;
-    email: string;
-    display_name: string;
-    profile_picture_url?: string;
-    created_at: string;
-  };
-}
-
-// src/lib/auth/sync.ts - Updated to use new API client
+// src/lib/auth/sync.ts
 import { getAuth } from 'firebase/auth';
 import { authApi } from '@/lib/api';
 
