@@ -1,5 +1,4 @@
-// backend/routes/authRoutes.js
-
+// Backend/routes/authRoutes.js (UPDATED - Investor as Default)
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
@@ -19,24 +18,36 @@ if (!admin.apps.length) {
   });
 }
 
-// --- Helper function to create or update user ---
+// --- Helper function to create or update user (INVESTOR DEFAULT) ---
 async function createOrUpdateUser(userData) {
   const { wallet_address, email, display_name, profile_picture_url } = userData;
   
   try {
     const result = await db.query(
-      `INSERT INTO users (wallet_address, email, display_name, profile_picture_url)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO users (wallet_address, email, display_name, profile_picture_url, status)
+       VALUES ($1, $2, $3, $4, 'investor')
        ON CONFLICT (wallet_address) 
        DO UPDATE SET 
          email = EXCLUDED.email,
          display_name = EXCLUDED.display_name,
          profile_picture_url = EXCLUDED.profile_picture_url,
          updated_at = CURRENT_TIMESTAMP
+         -- NOTE: We do NOT update status on conflict - preserve existing status
        RETURNING *`,
       [wallet_address, email, display_name, profile_picture_url]
     );
-    return result.rows[0];
+    
+    const user = result.rows[0];
+    console.log(`✅ User synced: ${email} (Status: ${user.status})`);
+    
+    // Log status for new vs existing users
+    if (user.status === 'investor' && !user.updated_at) {
+      console.log(`   🆕 New user created with investor status`);
+    } else {
+      console.log(`   👤 Existing ${user.status} user updated`);
+    }
+    
+    return user;
   } catch (error) {
     console.error('Database error in createOrUpdateUser:', error);
     throw error;
@@ -63,7 +74,7 @@ router.get('/user/:wallet_address', async (req, res) => {
   }
 });
 
-// --- Firebase user sync route (Enhanced) ---
+// --- Firebase user sync route (CREATES INVESTOR BY DEFAULT) ---
 router.post('/sync', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: 'Missing authorization token' });
@@ -77,7 +88,7 @@ router.post('/sync', async (req, res) => {
     // Get wallet address from request body or use UID as fallback
     const wallet_address = req.body.wallet_address || uid;
     
-    // Create user data object
+    // Create user data object - WILL BE 'investor' by default
     const userData = {
       wallet_address,
       email,
@@ -85,10 +96,24 @@ router.post('/sync', async (req, res) => {
       profile_picture_url: req.body.profile_picture_url || picture || null
     };
 
-    // Create or update user in database
+    // Create or update user in database (defaults to 'investor' status)
     const user = await createOrUpdateUser(userData);
     
-    console.log(`✅ Successfully synced user: ${email}`);
+    // Determine welcome message based on status
+    let welcomeMessage = 'Welcome back!';
+    switch (user.status) {
+      case 'investor':
+        welcomeMessage = 'Welcome! You have full investor access to trade and pledge.';
+        break;
+      case 'influencer':
+        welcomeMessage = 'Welcome back! You have influencer access with token management.';
+        break;
+      case 'admin':
+        welcomeMessage = 'Welcome back, admin! You have full platform access.';
+        break;
+    }
+    
+    console.log(`✅ Successfully synced user: ${email} (Status: ${user.status})`);
     return res.status(200).json({ 
       success: true, 
       user: {
@@ -97,8 +122,11 @@ router.post('/sync', async (req, res) => {
         email: user.email,
         display_name: user.display_name,
         profile_picture_url: user.profile_picture_url,
-        created_at: user.created_at
-      }
+        status: user.status, // Will be 'investor' for new users
+        created_at: user.created_at,
+        permissions: getUserPermissions(user.status)
+      },
+      message: welcomeMessage
     });
   } catch (err) {
     console.error('❌ Firebase token verification failed:', err.message);
@@ -106,7 +134,38 @@ router.post('/sync', async (req, res) => {
   }
 });
 
-// --- Update user profile ---
+// --- Helper function to get permissions by status ---
+function getUserPermissions(status) {
+  const permissions = {
+    investor: [
+      'view_public_content',
+      'view_influencers', 
+      'make_investments',
+      'view_portfolio',
+      'trade_tokens',
+      'pledge_to_influencers'
+    ],
+    influencer: [
+      'all_investor_permissions',
+      'manage_own_token',
+      'view_analytics',
+      'access_influencer_dashboard'
+    ],
+    admin: [
+      'all_permissions',
+      'manage_users',
+      'manage_influencers',
+      'view_all_analytics',
+      'approve_tokens',
+      'manage_platform',
+      'access_admin_dashboard'
+    ]
+  };
+  
+  return permissions[status] || permissions.investor;
+}
+
+// --- Update user profile (CANNOT change status) ---
 router.put('/user/:wallet_address', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: 'Missing authorization token' });
@@ -123,6 +182,7 @@ router.put('/user/:wallet_address', async (req, res) => {
 
     const { display_name, profile_picture_url } = req.body;
     
+    // NOTE: Status is NOT included - only admins can change status via admin scripts
     const result = await db.query(
       `UPDATE users 
        SET display_name = COALESCE($1, display_name),
@@ -144,7 +204,92 @@ router.put('/user/:wallet_address', async (req, res) => {
   }
 });
 
-// --- Telegram login callback ---
+// --- Check user status (for frontend to determine UI) ---
+router.get('/status/:wallet_address', async (req, res) => {
+  try {
+    const { wallet_address } = req.params;
+    
+    const result = await db.query(
+      'SELECT status, email, display_name FROM users WHERE wallet_address = $1',
+      [wallet_address]
+    );
+    
+    if (result.rows.length === 0) {
+      // User doesn't have account = browser status
+      return res.json({
+        status: 'browser',
+        hasAccount: false,
+        permissions: ['view_public_content', 'browse_influencers']
+      });
+    }
+    
+    const user = result.rows[0];
+    res.json({
+      status: user.status,
+      hasAccount: true,
+      email: user.email,
+      display_name: user.display_name,
+      permissions: getUserPermissions(user.status)
+    });
+    
+  } catch (error) {
+    console.error('Error checking user status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- Admin-only user management ---
+router.get('/admin/user-stats', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: 'Missing authorization token' });
+
+  try {
+    const idToken = authHeader.split('Bearer ')[1];
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    
+    // Check if user is admin
+    const userCheck = await db.query(
+      'SELECT status FROM users WHERE email = $1',
+      [decoded.email]
+    );
+    
+    if (!userCheck.rows[0] || userCheck.rows[0].status !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    // Get user statistics
+    const stats = await db.query(`
+      SELECT status, COUNT(*) as count
+      FROM users 
+      GROUP BY status
+      ORDER BY 
+        CASE status
+          WHEN 'admin' THEN 1
+          WHEN 'influencer' THEN 2  
+          WHEN 'investor' THEN 3
+          ELSE 4
+        END
+    `);
+    
+    const totalUsers = stats.rows.reduce((sum, row) => sum + parseInt(row.count), 0);
+    
+    res.json({
+      success: true,
+      stats: stats.rows.map(row => ({
+        ...row,
+        percentage: ((row.count / totalUsers) * 100).toFixed(1)
+      })),
+      total: totalUsers,
+      note: "Browser users are anonymous and not counted here"
+    });
+    
+  } catch (error) {
+    console.error('Error getting user stats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- Telegram and Discord routes (create investor accounts) ---
 router.post('/telegram', async (req, res) => {
   console.log('Received Telegram login callback');
   const data = req.body;
@@ -166,12 +311,11 @@ router.post('/telegram', async (req, res) => {
     return res.status(403).send('Unauthorized');
   }
 
-  // TODO: Create user from Telegram data
-  console.log('Telegram login successful');
+  // TODO: Create investor user from Telegram data
+  console.log('Telegram login successful - would create investor account');
   return res.status(200).json({ success: true });
 });
 
-// --- Discord OAuth login ---
 router.get('/discord', async (req, res) => {
   const code = req.query.code;
   if (!code) {
@@ -204,8 +348,7 @@ router.get('/discord', async (req, res) => {
 
     const discordUser = userRes.data;
     
-    // TODO: Create user from Discord data and handle authentication
-    // For now, just redirect to dashboard
+    // TODO: Create investor user from Discord data
     return res.redirect(302, 'http://localhost:8080/dashboard');
   } catch (err) {
     console.error('Discord OAuth error:', err.response?.data || err.message);
