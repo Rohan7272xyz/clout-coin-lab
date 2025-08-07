@@ -1,5 +1,5 @@
-// Backend/set-admin.js
-// Script to set a user as admin
+// Backend/setAdminSimple.js
+// Simplified script to set a user as admin without complex status system
 
 const db = require('./database/db');
 require('dotenv').config();
@@ -7,7 +7,7 @@ require('dotenv').config();
 async function setAdmin(email) {
   if (!email) {
     console.error('❌ Please provide an email address');
-    console.log('Usage: node set-admin.js your-email@example.com');
+    console.log('Usage: node setAdminSimple.js your-email@example.com');
     process.exit(1);
   }
   
@@ -30,7 +30,7 @@ async function setAdmin(email) {
     console.log(`✅ Found user: ${user.display_name || user.email}`);
     console.log(`   Current status: ${user.status || 'browser'}`);
     
-    // Update to admin
+    // Simple update to admin - no complex status tracking
     const result = await db.query(
       `UPDATE users 
        SET status = 'admin',
@@ -65,6 +65,10 @@ async function setAdmin(email) {
     process.exit(0);
   } catch (error) {
     console.error('❌ Error setting admin:', error.message);
+    console.log('\n🔧 If you get a "column does not exist" error, run this SQL first:');
+    console.log('   ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT \'browser\';');
+    console.log('   ALTER TABLE users ADD COLUMN IF NOT EXISTS status_updated_by VARCHAR(255);');
+    console.log('   ALTER TABLE users ADD COLUMN IF NOT EXISTS status_updated_at TIMESTAMP;');
     process.exit(1);
   }
 }
