@@ -75,7 +75,7 @@ const PreInvest = () => {
 
   // Auto-scroll to featured influencers when wallet connects
   useEffect(() => {
-    if (isConnected && featuredInfluencersRef.current) {
+    if (featuredInfluencersRef.current) {
       setTimeout(() => {
         // Get header height for proper offset calculation
         const header = document.querySelector('header');
@@ -86,7 +86,7 @@ const PreInvest = () => {
           top: elementTop - headerHeight - 32, // 32px extra spacing
           behavior: "smooth"
         });
-      }, 500); // Small delay to let the UI update
+      }, 200); // Small delay to let the UI update
     }
   }, [isConnected]);
 

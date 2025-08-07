@@ -53,7 +53,7 @@ const Header = () => {
           <span className="text-xl font-bold group-hover:underline">CoinFluence</span>
         </Link>
         
-        <nav className="hidden md:flex items-center space-x-10">
+        <nav className="hidden md:flex items-center space-x-12">
           <Link to="/trending" className="text-gray-light hover:text-foreground transition-colors">
             Trending
           </Link>
