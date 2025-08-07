@@ -1,0 +1,10 @@
+{
+  "network": "base-sepolia",
+  "contractName": "PledgeManager",
+  "contractAddress": "0x2B7B6c9c470cD1808447987BBc0aF952f8B4d7d8",
+  "tokenFactory": "0x18594f5d4761b9DBEA625dDeD86356F6D346A09a",
+  "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  "deployedAt": "2025-08-06T23:47:45.691Z",
+  "deployer": "0x4A2bc44Cc67FF08Deba6C26dbFCe8fc5F9BC0a50",
+  "deploymentTx": "0x71298d25c0d6103ca206ac56b6584abff3a0cefb69b481590a21715fb20cb773"
+}

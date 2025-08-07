@@ -304,6 +304,47 @@
         "IERC20Errors",
         "IERC721Errors"
       ]
+    },
+    "C:\\Users\\rohan\\OneDrive\\Desktop\\CoinFluenceV2\\contracts\\contracts\\PledgeManager.sol": {
+      "lastModificationDate": 1754523666053,
+      "contentHash": "a4073d121e3e98b1b8aab31914666744",
+      "sourceName": "contracts/PledgeManager.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/utils/ReentrancyGuard.sol",
+        "@openzeppelin/contracts/access/Ownable.sol",
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "ITokenFactory",
+        "PledgeManager"
+      ]
     }
   }
 }
