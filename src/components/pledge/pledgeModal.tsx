@@ -1,4 +1,4 @@
-// src/components/pledge/PledgeModal.tsx
+// src/components/pledge/PledgeModal.tsx - Updated with proper API integration
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import {
 import { useAccount } from "wagmi";
 import type { InfluencerPledgeData } from "@/lib/pledge/types";
 import { formatPledgeAmount, calculateProgress } from "@/lib/pledge/api";
+import { toast } from "@/components/ui/sonner";
 
 interface PledgeModalProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ interface PledgeModalProps {
 }
 
 const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit }: PledgeModalProps) => {
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const [pledgeAmount, setPledgeAmount] = useState("");
   const [selectedCurrency, setSelectedCurrency] = useState<'ETH' | 'USDC'>('ETH');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,27 +45,91 @@ const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit }: PledgeModa
   const showETH = parseFloat(influencer.thresholdETH) > 0;
   const showUSDC = parseFloat(influencer.thresholdUSDC) > 0;
 
+  const submitPledgeToDatabase = async (amount: string, currency: 'ETH' | 'USDC', txHash?: string) => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      
+      // For development, use mock endpoint if no transaction hash
+      const endpoint = txHash ? '/api/pledge/submit' : '/api/pledge/mock';
+      
+      const payload = {
+        userAddress: address,
+        influencerAddress: influencer.address,
+        amount: amount,
+        currency: currency,
+        ...(txHash && { 
+          txHash,
+          blockNumber: Math.floor(Math.random() * 1000000) // Mock block number
+        })
+      };
+
+      console.log('📤 Submitting pledge to database:', payload);
+
+      const response = await fetch(`${apiUrl}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Pledge recorded successfully:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('❌ Error submitting pledge to database:', error);
+      throw error;
+    }
+  };
+
   const handleSubmit = async () => {
     if (!pledgeAmount || parseFloat(pledgeAmount) <= 0) {
-      alert("Please enter a valid pledge amount");
+      toast.error("Please enter a valid pledge amount");
       return;
     }
 
-    if (!isConnected) {
-      alert("Please connect your wallet first");
+    if (!isConnected || !address) {
+      toast.error("Please connect your wallet first");
       return;
     }
 
     setIsSubmitting(true);
+    
     try {
-      // Mock pledge submission - replace with actual contract call
+      console.log('🔄 Starting pledge submission...');
+      
+      // For demo purposes, we'll simulate a blockchain transaction
+      // In production, this would interact with your smart contract
+      
+      // Simulate transaction delay
       await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Submit to database (with mock data for now)
+      const result = await submitPledgeToDatabase(pledgeAmount, selectedCurrency);
+      
+      // Call the parent callback if provided
       onPledgeSubmit?.(pledgeAmount, selectedCurrency);
-      alert(`Successfully pledged ${pledgeAmount} ${selectedCurrency} to ${influencer.name}!`);
+      
+      // Show success message
+      toast.success(`Successfully pledged ${pledgeAmount} ${selectedCurrency} to ${influencer.name}!`);
+      
+      // Close modal
       onClose();
+      
+      // Optional: Refresh the page to show updated data
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+      
     } catch (error) {
-      console.error("Pledge error:", error);
-      alert("Failed to submit pledge. Please try again.");
+      console.error("Pledge submission failed:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to submit pledge. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

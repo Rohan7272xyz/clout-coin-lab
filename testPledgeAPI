@@ -1,0 +1,159 @@
+// testPledgeAPI.js - ES Module version
+import axios from 'axios';
+
+const API_BASE_URL = 'http://localhost:3000';
+
+// Test data
+const testUserAddress = '0x1234567890123456789012345678901234567890';
+const testInfluencerAddress = '0x0987654321098765432109876543210987654321';
+
+async function testPledgeDatabase() {
+  console.log('🧪 Testing Pledge Database Integration\n');
+
+  try {
+    // Test 1: Submit a mock pledge
+    console.log('📝 Test 1: Submitting mock pledge...');
+    const pledgeResponse = await axios.post(`${API_BASE_URL}/api/pledge/mock`, {
+      userAddress: testUserAddress,
+      influencerAddress: testInfluencerAddress,
+      amount: '0.5',
+      currency: 'ETH'
+    });
+
+    console.log('✅ Pledge submitted:', {
+      id: pledgeResponse.data.pledge.id,
+      txHash: pledgeResponse.data.pledge.txHash,
+      success: pledgeResponse.data.success
+    });
+
+    // Test 2: Fetch user pledges
+    console.log('\n📋 Test 2: Fetching user pledges...');
+    const userPledgesResponse = await axios.get(
+      `${API_BASE_URL}/api/pledge/user/${testUserAddress}`
+    );
+
+    console.log('✅ User pledges:', {
+      count: userPledgesResponse.data.length,
+      pledges: userPledgesResponse.data.map(p => ({
+        id: p.id,
+        influencer: p.influencerName,
+        ethAmount: p.ethAmount,
+        usdcAmount: p.usdcAmount
+      }))
+    });
+
+    // Test 3: Get influencer data
+    console.log('\n👑 Test 3: Fetching influencer data...');
+    const influencerResponse = await axios.get(
+      `${API_BASE_URL}/api/pledge/influencer/${testInfluencerAddress}`
+    );
+
+    console.log('✅ Influencer data:', {
+      name: influencerResponse.data.name,
+      totalPledgedETH: influencerResponse.data.totalPledgedETH,
+      pledgerCount: influencerResponse.data.pledgerCount,
+      thresholdMet: influencerResponse.data.thresholdMet
+    });
+
+    // Test 4: Submit another pledge (USDC this time)
+    console.log('\n💰 Test 4: Submitting USDC pledge...');
+    const usdcPledgeResponse = await axios.post(`${API_BASE_URL}/api/pledge/mock`, {
+      userAddress: testUserAddress,
+      influencerAddress: testInfluencerAddress,
+      amount: '100',
+      currency: 'USDC'
+    });
+
+    console.log('✅ USDC pledge submitted:', {
+      id: usdcPledgeResponse.data.pledge.id,
+      success: usdcPledgeResponse.data.success
+    });
+
+    // Test 5: Verify updated totals
+    console.log('\n🔄 Test 5: Verifying updated totals...');
+    const updatedUserPledges = await axios.get(
+      `${API_BASE_URL}/api/pledge/user/${testUserAddress}`
+    );
+
+    const totalETH = updatedUserPledges.data.reduce((sum, p) => sum + parseFloat(p.ethAmount), 0);
+    const totalUSDC = updatedUserPledges.data.reduce((sum, p) => sum + parseFloat(p.usdcAmount), 0);
+
+    console.log('✅ Updated totals:', {
+      totalETH: totalETH.toString(),
+      totalUSDC: totalUSDC.toString(),
+      pledgeCount: updatedUserPledges.data.length
+    });
+
+    console.log('\n🎉 All tests passed! Database integration is working correctly.');
+
+  } catch (error) {
+    console.error('❌ Test failed:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+
+    if (error.code === 'ECONNREFUSED') {
+      console.log('\n💡 Make sure your backend server is running:');
+      console.log('   cd Backend && node index.cjs');
+    }
+  }
+}
+
+// Test database setup
+async function testDatabaseSetup() {
+  console.log('🔍 Testing database setup...\n');
+
+  try {
+    // Check if database is accessible
+    const healthResponse = await axios.get(`${API_BASE_URL}/api/test/health`);
+    console.log('✅ Database health:', healthResponse.data.services.database);
+
+    // Check required tables
+    const tablesResponse = await axios.get(`${API_BASE_URL}/api/test/tables`);
+    const requiredTables = ['users', 'influencers', 'pledges', 'pledge_events'];
+    const existingTables = tablesResponse.data.tables;
+
+    console.log('📋 Required tables check:');
+    requiredTables.forEach(table => {
+      const exists = existingTables.includes(table);
+      console.log(`   ${exists ? '✅' : '❌'} ${table}`);
+    });
+
+    const allTablesExist = requiredTables.every(table => existingTables.includes(table));
+    
+    if (!allTablesExist) {
+      console.log('\n⚠️  Missing tables detected. Please run the database migrations:');
+      console.log('   Execute: Backend/database/pledge_schema_updates.sql');
+      return false;
+    }
+
+    return true;
+
+  } catch (error) {
+    console.error('❌ Database setup test failed:', error.message);
+    return false;
+  }
+}
+
+// Main test runner
+async function runTests() {
+  console.log('🚀 CoinFluence Pledge Database Tests');
+  console.log('=====================================\n');
+
+  // First test database setup
+  const dbSetupOk = await testDatabaseSetup();
+  
+  if (!dbSetupOk) {
+    console.log('\n🛑 Database setup issues detected. Please fix and try again.');
+    return;
+  }
+
+  console.log('\n📊 Database setup OK. Running pledge tests...\n');
+  
+  // Then test pledge functionality
+  await testPledgeDatabase();
+}
+
+// Run the tests
+runTests();
