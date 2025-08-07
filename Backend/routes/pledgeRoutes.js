@@ -4,8 +4,14 @@ const router = express.Router();
 const { ethers } = require('ethers');
 const db = require('../database/db');
 
-// Contract configuration
-const PLEDGE_MANAGER_ADDRESS = process.env.PLEDGE_MANAGER_ADDRESS;
+// Contract configuration - Make sure we have a valid address
+const PLEDGE_MANAGER_ADDRESS = process.env.PLEDGE_MANAGER_ADDRESS || "0x2B7B6c9c470cD1808447987BBc0aF952f8B4d7d8";
+
+// Validate the address exists
+if (!PLEDGE_MANAGER_ADDRESS) {
+  console.error('❌ PLEDGE_MANAGER_ADDRESS is not defined');
+  console.log('   Please add PLEDGE_MANAGER_ADDRESS to your .env file');
+}
 const PLEDGE_MANAGER_ABI = [
   // Add the ABI from the compiled contract here
   "function pledgeToInfluencer(address influencer) external payable",
@@ -21,15 +27,76 @@ const PLEDGE_MANAGER_ABI = [
   "function isThresholdMet(address influencer) external view returns (bool)"
 ];
 
-// Initialize provider
-const provider = new ethers.providers.JsonRpcProvider(process.env.BASE_SEPOLIA_RPC_URL);
-const adminWallet = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider);
-const pledgeContract = new ethers.Contract(PLEDGE_MANAGER_ADDRESS, PLEDGE_MANAGER_ABI, provider);
-const adminPledgeContract = pledgeContract.connect(adminWallet);
+// Initialize provider - check if blockchain features are enabled
+let provider = null;
+let adminWallet = null;
+let pledgeContract = null;
+let adminPledgeContract = null;
+let blockchainEnabled = false;
 
-// GET /api/pledge/influencers - Get all influencers with pledge data
+// Check if blockchain configuration is available
+if (process.env.BASE_SEPOLIA_RPC_URL && process.env.DEPLOYER_PRIVATE_KEY && PLEDGE_MANAGER_ADDRESS) {
+  try {
+    console.log('🔧 Initializing blockchain connection...');
+    console.log('   RPC URL:', process.env.BASE_SEPOLIA_RPC_URL);
+    console.log('   Contract Address:', PLEDGE_MANAGER_ADDRESS);
+    
+    provider = new ethers.providers.JsonRpcProvider(process.env.BASE_SEPOLIA_RPC_URL);
+    adminWallet = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider);
+    pledgeContract = new ethers.Contract(PLEDGE_MANAGER_ADDRESS, PLEDGE_MANAGER_ABI, provider);
+    adminPledgeContract = pledgeContract.connect(adminWallet);
+    blockchainEnabled = true;
+    console.log('✅ Blockchain features enabled for pledge routes');
+  } catch (error) {
+    console.warn('⚠️ Blockchain features disabled:', error.message);
+    blockchainEnabled = false;
+  }
+} else {
+  console.log('ℹ️ Blockchain features disabled - missing configuration');
+  if (!process.env.BASE_SEPOLIA_RPC_URL) console.log('   Missing: BASE_SEPOLIA_RPC_URL');
+  if (!process.env.DEPLOYER_PRIVATE_KEY) console.log('   Missing: DEPLOYER_PRIVATE_KEY');
+  if (!PLEDGE_MANAGER_ADDRESS) console.log('   Missing: PLEDGE_MANAGER_ADDRESS');
+  console.log('   Add these to your Backend/.env file to enable blockchain features');
+}
+
+// Middleware to check if blockchain is enabled
+const requireBlockchain = (req, res, next) => {
+  if (!blockchainEnabled) {
+    return res.status(503).json({ 
+      error: 'Blockchain features are not configured',
+      message: 'Please set BASE_SEPOLIA_RPC_URL and DEPLOYER_PRIVATE_KEY in your .env file'
+    });
+  }
+  next();
+};
+
+// GET /api/pledge/influencers - Get all influencers with pledge data (mock data if blockchain disabled)
 router.get('/influencers', async (req, res) => {
   try {
+    if (!blockchainEnabled) {
+      // Return mock data when blockchain is disabled
+      const mockInfluencers = [
+        {
+          address: "0x123...abc",
+          name: "Test Influencer",
+          tokenName: "TEST",
+          symbol: "TST",
+          totalPledgedETH: "0.5",
+          totalPledgedUSDC: "100",
+          thresholdETH: "1.0",
+          thresholdUSDC: "1000",
+          pledgerCount: 5,
+          thresholdMet: false,
+          isApproved: false,
+          isLaunched: false,
+          createdAt: Date.now(),
+          category: "Test",
+          verified: false
+        }
+      ];
+      return res.json(mockInfluencers);
+    }
+
     // Get influencers from contract
     const influencerAddresses = await pledgeContract.getAllInfluencers();
     
@@ -57,7 +124,7 @@ router.get('/influencers', async (req, res) => {
             tokenName: pledgeData.name,
             symbol: pledgeData.symbol,
             totalPledgedETH: ethers.utils.formatEther(progress.totalETH),
-            totalPledgedUSDC: ethers.utils.formatUnits(progress.totalUSDC, 6), // USDC has 6 decimals
+            totalPledgedUSDC: ethers.utils.formatUnits(progress.totalUSDC, 6),
             thresholdETH: ethers.utils.formatEther(progress.thresholdETH),
             thresholdUSDC: ethers.utils.formatUnits(progress.thresholdUSDC, 6),
             pledgerCount: progress.pledgerCount.toNumber(),
@@ -67,7 +134,6 @@ router.get('/influencers', async (req, res) => {
             tokenAddress: pledgeData.tokenAddress,
             createdAt: pledgeData.createdAt.toNumber(),
             launchedAt: pledgeData.launchedAt.toNumber(),
-            // Additional data from database
             avatar: dbData?.avatar_url,
             followers: dbData?.followers_count,
             category: dbData?.category,
@@ -81,9 +147,7 @@ router.get('/influencers', async (req, res) => {
       })
     );
     
-    // Filter out failed requests
     const validInfluencers = influencers.filter(inf => inf !== null);
-    
     res.json(validInfluencers);
   } catch (error) {
     console.error('Error fetching influencers:', error);
@@ -92,7 +156,7 @@ router.get('/influencers', async (req, res) => {
 });
 
 // GET /api/pledge/influencer/:address - Get specific influencer pledge data
-router.get('/influencer/:address', async (req, res) => {
+router.get('/influencer/:address', requireBlockchain, async (req, res) => {
   try {
     const { address } = req.params;
     
@@ -131,7 +195,6 @@ router.get('/influencer/:address', async (req, res) => {
       tokenAddress: pledgeData.tokenAddress,
       createdAt: pledgeData.createdAt.toNumber(),
       launchedAt: pledgeData.launchedAt.toNumber(),
-      // Database data
       avatar: dbData?.avatar_url,
       followers: dbData?.followers_count,
       category: dbData?.category,
@@ -145,7 +208,7 @@ router.get('/influencer/:address', async (req, res) => {
 });
 
 // GET /api/pledge/user/:userAddress/pledges - Get user's pledges
-router.get('/user/:userAddress/pledges', async (req, res) => {
+router.get('/user/:userAddress/pledges', requireBlockchain, async (req, res) => {
   try {
     const { userAddress } = req.params;
     
@@ -153,7 +216,6 @@ router.get('/user/:userAddress/pledges', async (req, res) => {
       return res.status(400).json({ error: 'Invalid user address' });
     }
     
-    // Get all influencers to check user pledges
     const influencerAddresses = await pledgeContract.getAllInfluencers();
     
     const userPledges = await Promise.all(
@@ -194,7 +256,7 @@ router.get('/user/:userAddress/pledges', async (req, res) => {
 });
 
 // POST /api/pledge/admin/setup-influencer - Admin: Setup influencer for pledging
-router.post('/admin/setup-influencer', async (req, res) => {
+router.post('/admin/setup-influencer', requireBlockchain, async (req, res) => {
   try {
     const {
       influencerAddress,
@@ -277,7 +339,7 @@ router.post('/admin/setup-influencer', async (req, res) => {
 });
 
 // POST /api/pledge/admin/approve-influencer - Admin: Approve influencer for token launch
-router.post('/admin/approve-influencer', async (req, res) => {
+router.post('/admin/approve-influencer', requireBlockchain, async (req, res) => {
   try {
     const { influencerAddress } = req.body;
     
@@ -285,7 +347,6 @@ router.post('/admin/approve-influencer', async (req, res) => {
       return res.status(400).json({ error: 'Invalid influencer address' });
     }
     
-    // Check if threshold is met
     const thresholdMet = await pledgeContract.isThresholdMet(influencerAddress);
     if (!thresholdMet) {
       return res.status(400).json({ error: 'Pledge threshold not met yet' });
@@ -310,7 +371,7 @@ router.post('/admin/approve-influencer', async (req, res) => {
 });
 
 // POST /api/pledge/admin/launch-token - Admin: Launch token for approved influencer
-router.post('/admin/launch-token', async (req, res) => {
+router.post('/admin/launch-token', requireBlockchain, async (req, res) => {
   try {
     const { influencerAddress } = req.body;
     
@@ -354,6 +415,20 @@ router.post('/admin/launch-token', async (req, res) => {
 // GET /api/pledge/stats - Get overall platform statistics
 router.get('/stats', async (req, res) => {
   try {
+    if (!blockchainEnabled) {
+      // Return mock stats when blockchain is disabled
+      return res.json({
+        totalInfluencers: 0,
+        launchedTokens: 0,
+        approvedInfluencers: 0,
+        totalPledgedETH: "0.0",
+        totalPledgedUSDC: "0.0",
+        totalPledgers: 0,
+        pendingApprovals: 0,
+        blockchainEnabled: false
+      });
+    }
+
     const influencerAddresses = await pledgeContract.getAllInfluencers();
     
     let totalPledgedETH = ethers.BigNumber.from(0);
@@ -384,7 +459,8 @@ router.get('/stats', async (req, res) => {
       totalPledgedETH: ethers.utils.formatEther(totalPledgedETH),
       totalPledgedUSDC: ethers.utils.formatUnits(totalPledgedUSDC, 6),
       totalPledgers,
-      pendingApprovals: approvedInfluencers - launchedTokens
+      pendingApprovals: approvedInfluencers - launchedTokens,
+      blockchainEnabled: true
     });
   } catch (error) {
     console.error('Error fetching stats:', error);
