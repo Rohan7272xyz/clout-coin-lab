@@ -20,6 +20,7 @@ import {
   Calendar
 } from "lucide-react";
 import { useAccount, useWriteContract, useReadContract, useWaitForTransactionReceipt } from "wagmi";
+import { base } from "wagmi/chains";
 import { parseEther, formatEther } from "viem";
 import { toast } from "@/components/ui/sonner";
 
@@ -594,10 +595,8 @@ const TokenFactoryDashboard = () => {
     }
 
     setIsCreating(true);
-    
     try {
       const creationFee = factoryInfo?.[2] || parseEther("0.01");
-      
       await createCoin({
         address: TOKEN_FACTORY_ADDRESS,
         abi: TOKEN_FACTORY_ABI,
@@ -609,11 +608,11 @@ const TokenFactoryDashboard = () => {
           formData.influencerWallet as `0x${string}`,
           BigInt(formData.totalSupply)
         ],
-        value: creationFee
+        value: creationFee,
+        chain: base,
+        account: address
       });
-      
       toast.success("Transaction submitted! Waiting for confirmation...");
-      
     } catch (error: any) {
       console.error("Error creating coin:", error);
       toast.error(error.message || "Failed to create token");

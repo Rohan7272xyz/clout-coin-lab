@@ -155,7 +155,7 @@ const PreInvest = () => {
             <div className="flex justify-center items-center space-x-8 text-sm text-gray-muted">
               <div className="flex items-center">
                 <Users className="w-4 h-4 mr-2 text-primary" />
-                <span>1,247 people waiting</span>
+                <span>0 people waiting</span>
               </div>
               <div className="flex items-center">
                 <Bell className="w-4 h-4 mr-2 text-primary" />
@@ -295,46 +295,7 @@ const PreInvest = () => {
             </div>
           </div>
         </section>
-
-        {/* Early Access CTA */}
-        <section className="py-20 bg-gradient-to-r from-primary/10 to-accent/10">
-          <div className="container mx-auto px-4 text-center">
-            <h2 className="text-4xl font-bold mb-4">Join the Waitlist</h2>
-            <p className="text-xl text-gray-light mb-8 max-w-2xl mx-auto">
-              Get notified when we launch and receive exclusive early access to invest in top influencers
-            </p>
-            
-            {!isSubscribed ? (
-              <form onSubmit={handleEarlyAccess} className="max-w-md mx-auto">
-                <div className="flex gap-2">
-                  <Input
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="flex-1"
-                  />
-                  <Button type="submit" className="bg-primary hover:bg-primary/90 px-6">
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              <div className="max-w-md mx-auto">
-                <div className="flex items-center justify-center gap-2 text-primary mb-2">
-                  <Check className="w-5 h-5" />
-                  <span className="font-semibold">You're on the list!</span>
-                </div>
-                <p className="text-sm text-gray-light">
-                  We'll notify you when early access is available
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
       </main>
-      
       <Footer />
     </div>
   );

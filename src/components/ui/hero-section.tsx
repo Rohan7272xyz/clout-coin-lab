@@ -32,7 +32,7 @@ const HeroSection = () => {
           </h1>
           
           <p className="text-xl md:text-2xl text-gray-light mb-8 max-w-2xl mx-auto">
-            Back trending influencers with meme coins. Trade clout. Profit publicly.
+            Back trending influencers with crypto coins. Trade clout. Profit publicly.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -76,7 +76,7 @@ const HeroSection = () => {
                           <Button
                             variant="wallet"
                             size="lg"
-                            className="px-8 py-4 h-auto font-semibold text-lg"
+                            className="px-8 py-4 h-auto font-semibold text-lg hover:!text-black [&>svg]:hover:!text-black"
                             onClick={openConnectModal}
                             type="button"
                           >
@@ -104,7 +104,7 @@ const HeroSection = () => {
                         <Button
                           variant="wallet"
                           size="lg"
-                          className="px-8 py-4 h-auto font-semibold text-lg"
+                          className="px-8 py-4 h-auto font-semibold text-lg hover:!text-black [&>svg]:hover:!text-black"
                           onClick={openAccountModal}
                           type="button"
                         >
@@ -122,15 +122,15 @@ const HeroSection = () => {
           <div className="mt-12 flex justify-center items-center space-x-8 text-sm text-gray-muted">
             <div className="flex items-center">
               <div className="w-2 h-2 bg-primary rounded-full mr-2"></div>
-              <span>$2.4M+ Invested</span>
+              <span>$0 Invested</span>
             </div>
             <div className="flex items-center">
               <div className="w-2 h-2 bg-primary rounded-full mr-2"></div>
-              <span>150+ Influencers</span>
+              <span>0 Influencers</span>
             </div>
             <div className="flex items-center">
               <div className="w-2 h-2 bg-primary rounded-full mr-2"></div>
-              <span>5,000+ Investors</span>
+              <span>0 Investors</span>
             </div>
           </div>
         </div>

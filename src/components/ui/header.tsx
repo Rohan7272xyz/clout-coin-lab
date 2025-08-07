@@ -41,11 +41,19 @@ const Header = () => {
       <div className="container mx-auto px-4 py-4 flex justify-center">
         <div className="flex items-center gap-x-14 mx-auto">
 
-        <Link to="/" className="flex items-center space-x-2 group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+        <Link to="/" className="flex items-center group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 h-12">
+          <img
+            src="/20250805_1007_Modern Coinfluence Logo_simple_compose_01k1x8x0hheaaraepnewcd4d46.png"
+            alt="CoinFluence Logo"
+            className="w-16 h-16 object-contain drop-shadow-md"
+            style={{ 
+              imageRendering: 'crisp-edges',
+            }}
+          />
           <span className="text-xl font-bold group-hover:underline">CoinFluence</span>
         </Link>
         
-        <nav className="hidden md:flex items-center space-x-12">
+        <nav className="hidden md:flex items-center space-x-10">
           <Link to="/trending" className="text-gray-light hover:text-foreground transition-colors">
             Trending
           </Link>
@@ -90,7 +98,7 @@ const Header = () => {
                         <Button
                           variant="wallet"
                           size="lg"
-                          className="px-6 py-2 font-semibold"
+                          className="px-6 py-2 font-semibold hover:!text-black [&>svg]:hover:!text-black"
                           onClick={openConnectModal}
                           type="button"
                         >
@@ -118,7 +126,7 @@ const Header = () => {
                       <Button
                         variant="wallet"
                         size="lg"
-                        className="px-6 py-2 font-semibold"
+                        className="px-6 py-2 font-semibold hover:!text-black [&>svg]:hover:!text-black"
                         onClick={openAccountModal}
                         type="button"
                       >
@@ -143,7 +151,7 @@ const Header = () => {
               <Button
                 variant="outline"
                 size="lg"
-                className="px-6 py-2 font-semibold border-primary text-primary hover:bg-primary hover:text-primary-foreground neon-glow flex items-center gap-2"
+                className="px-6 py-2 font-semibold border-primary text-primary hover:bg-primary hover:!text-black [&>svg]:hover:!text-black neon-glow flex items-center gap-2"
                 onClick={() => setShowUserMenu(!showUserMenu)}
               >
                 <User className="w-4 h-4" />
@@ -185,7 +193,7 @@ const Header = () => {
             <Button
               variant="outline"
               size="lg"
-              className="px-6 py-2 font-semibold border-primary text-primary hover:bg-primary hover:text-primary-foreground neon-glow"
+              className="px-6 py-2 font-semibold border-primary text-primary hover:bg-primary hover:!text-black neon-glow"
               asChild
             >
               <Link to="/signin">Sign In</Link>
