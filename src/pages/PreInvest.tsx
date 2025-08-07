@@ -125,7 +125,7 @@ const PreInvest = () => {
                 <ConnectButton.Custom>
                   {({ account, chain, openConnectModal, mounted }) => {
                     const ready = mounted;
-                    const connected = ready && account && chain;
+                    const connected = ready && !!account && !!chain;
                     
                     return (
                       <Button

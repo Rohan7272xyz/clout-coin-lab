@@ -49,8 +49,8 @@ const Header = () => {
           <Link to="/trending" className="text-gray-light hover:text-foreground transition-colors">
             Trending
           </Link>
-          <Link to="/#how-it-works" className="text-gray-light hover:text-foreground transition-colors">
-            How it Works
+          <Link to="/dashboard" className="text-gray-light hover:text-foreground transition-colors">
+            Dashboard
           </Link>
           <Link to="/#about" className="text-gray-light hover:text-foreground transition-colors">
             About
