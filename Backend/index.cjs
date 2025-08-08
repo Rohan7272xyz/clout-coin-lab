@@ -1,3 +1,4 @@
+// Backend/index.cjs - Updated with Firebase Admin initialization
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -7,7 +8,19 @@ const path = require('path');
 require('dotenv').config(); // Load Backend/.env
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); // Also load root .env
 
-// Import routes - Fix the paths (they should match your actual file structure)
+// Initialize Firebase Admin SDK BEFORE importing routes
+const { initializeFirebaseAdmin } = require('./config/firebase-admin');
+
+// Initialize Firebase Admin SDK
+try {
+  initializeFirebaseAdmin();
+  console.log('🔥 Firebase Admin SDK initialized');
+} catch (error) {
+  console.error('❌ Failed to initialize Firebase Admin SDK:', error);
+  console.error('⚠️  Authentication will not work properly');
+}
+
+// Import routes AFTER Firebase initialization
 const authRoutes = require('./routes/authRoutes');
 const influencerRoutes = require('./routes/influencerRoutes');
 const testRoutes = require('./routes/testRoutes');
@@ -43,13 +56,18 @@ app.get('/', (req, res) => {
       test: '/api/test',
       pledge: '/api/pledge'
     },
-    status: 'operational'
+    status: 'operational',
+    firebase: 'initialized'
   });
 });
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    firebase: 'initialized'
+  });
 });
 
 // Error handling middleware
@@ -75,4 +93,5 @@ app.listen(PORT, () => {
   console.log(`📊 Database connection configured`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 API endpoints available at http://localhost:${PORT}/api`);
+  console.log(`🚀 Firebase Admin SDK status: initialized`);
 });

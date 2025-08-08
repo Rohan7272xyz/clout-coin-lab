@@ -22,6 +22,7 @@ interface AuthContextType {
   loading: boolean;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  user: User | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -114,7 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     databaseUser,
     loading,
     signOut,
-    refreshUser
+    refreshUser,
+    user: firebaseUser
   };
 
   return (

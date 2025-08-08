@@ -1,12 +1,4 @@
-<<<<<<< HEAD
-import React from "react";
 
-const AdminDashboard: React.FC = () => {
-  return (
-    <div>
-      <h1>Admin Dashboard</h1>
-      <p>This is a placeholder for the Admin Dashboard.</p>
-=======
 // src/pages/AdminDashboard.tsx
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -447,13 +439,9 @@ const AdminDashboard = () => {
           </Card>
         </TabsContent>
       </Tabs>
->>>>>>> 668e890d2425094ffa187745eb89db6c14dc06e1
     </div>
   );
 };
 
-<<<<<<< HEAD
+
 export default AdminDashboard;
-=======
-export default AdminDashboard;
->>>>>>> 668e890d2425094ffa187745eb89db6c14dc06e1
