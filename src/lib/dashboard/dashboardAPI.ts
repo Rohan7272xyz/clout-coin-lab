@@ -1,5 +1,6 @@
-// src/lib/dashboard/dashboardAPI.ts - Updated for your actual database schema
+// src/lib/dashboard/dashboardAPI.ts - Enhanced version with better admin support
 import { getAuth } from 'firebase/auth';
+import { useState, useEffect } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -29,7 +30,8 @@ async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<
     });
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     return await response.json();
@@ -49,6 +51,7 @@ export const dashboardAPI = {
     getStats: async () => {
       return apiCall<{
         hasToken: boolean;
+        message?: string;
         token?: {
           address: string;
           name: string;
@@ -83,6 +86,15 @@ export const dashboardAPI = {
           totalInvestors: number;
           totalEthRaised: number;
           averageInvestment: number;
+        };
+        influencerInfo?: {
+          name: string;
+          handle: string;
+          status: string;
+          isApproved: boolean;
+          pledgeThreshold: number;
+          totalPledged: number;
+          thresholdMet: boolean;
         };
       }>('/api/dashboard/influencer/stats');
     },
@@ -138,6 +150,9 @@ export const dashboardAPI = {
           pnlPercent: number;
           purchaseDate: string;
           txHash: string;
+          status: string;
+          isLaunched: boolean;
+          hasWithdrawn: boolean;
         }>;
         summary: {
           totalValue: number;
@@ -163,16 +178,17 @@ export const dashboardAPI = {
           status: string;
           hasWithdrawn: boolean;
           tokenAddress?: string;
+          thresholdProgress: number;
         }>;
       }>('/api/dashboard/investor/pledges');
     },
   },
 
   // =======================
-  // ADMIN ENDPOINTS
+  // ENHANCED ADMIN ENDPOINTS
   // =======================
   admin: {
-    // Get platform statistics
+    // Get platform statistics - Enhanced version
     getStats: async () => {
       return apiCall<{
         totalUsers: number;
@@ -183,10 +199,14 @@ export const dashboardAPI = {
         pendingApprovals: number;
         activeUsers24h: number;
         newUsersToday: number;
+        approvedInfluencers: number;
+        totalPledgers: number;
+        totalEthPledged: number;
+        totalUsdcPledged: number;
       }>('/api/dashboard/admin/stats');
     },
 
-    // Get pending approvals
+    // Get pending approvals - Enhanced with progress
     getPendingApprovals: async () => {
       return apiCall<Array<{
         id: string;
@@ -195,18 +215,67 @@ export const dashboardAPI = {
         details: string;
         requestedAt: string;
         requestedBy: string;
+        progress?: number;
+        followers?: number;
+        category?: string;
       }>>('/api/dashboard/admin/pending-approvals');
     },
 
-    // Process approval
+    // Process approval - Enhanced with better response
     processApproval: async (id: string, approved: boolean) => {
       return apiCall<{
         success: boolean;
         message: string;
+        influencer?: {
+          id: string;
+          name: string;
+          handle: string;
+          approved: boolean;
+        };
       }>(`/api/dashboard/admin/approve/${id}`, {
         method: 'POST',
         body: JSON.stringify({ approved }),
       });
+    },
+
+    // Get recent platform activity
+    getRecentActivity: async () => {
+      return apiCall<Array<{
+        type: string;
+        description: string;
+        timestamp: string;
+        user: string;
+        amount?: number;
+      }>>('/api/dashboard/admin/recent-activity');
+    },
+
+    // Get user management data (for future implementation)
+    getUsers: async (page = 1, limit = 50, status?: string, search?: string) => {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        ...(status && { status }),
+        ...(search && { search })
+      });
+      
+      return apiCall<{
+        users: Array<{
+          id: number;
+          email: string;
+          display_name: string;
+          wallet_address: string;
+          status: string;
+          total_invested: number;
+          created_at: string;
+          updated_at: string;
+        }>;
+        pagination: {
+          total: number;
+          page: number;
+          limit: number;
+          totalPages: number;
+        };
+      }>(`/api/dashboard/admin/users?${params}`);
     },
   },
 
@@ -262,8 +331,6 @@ export const useDashboardData = () => {
 };
 
 // React hooks for each dashboard type
-import { useState, useEffect } from 'react';
-
 export const useInfluencerDashboard = () => {
   const [stats, setStats] = useState(null);
   const [pledgers, setPledgers] = useState(null);
@@ -355,9 +422,35 @@ export const useInvestorDashboard = () => {
   };
 };
 
+// Enhanced useAdminDashboard hook
 export const useAdminDashboard = () => {
-  const [stats, setStats] = useState(null);
-  const [pendingApprovals, setPendingApprovals] = useState(null);
+  const [stats, setStats] = useState<{
+    totalUsers: number;
+    totalInfluencers: number;
+    totalTokens: number;
+    totalVolume: number;
+    totalFees: number;
+    pendingApprovals: number;
+    activeUsers24h: number;
+    newUsersToday: number;
+    approvedInfluencers: number;
+    totalPledgers: number;
+    totalEthPledged: number;
+    totalUsdcPledged: number;
+  } | null>(null);
+  
+  const [pendingApprovals, setPendingApprovals] = useState<Array<{
+    id: string;
+    type: string;
+    name: string;
+    details: string;
+    requestedAt: string;
+    requestedBy: string;
+    progress?: number;
+    followers?: number;
+    category?: string;
+  }> | null>(null);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -366,16 +459,39 @@ export const useAdminDashboard = () => {
       setLoading(true);
       setError(null);
       
+      console.log('🔄 Loading admin dashboard data...');
+      
       const [statsData, approvalsData] = await Promise.all([
         dashboardAPI.admin.getStats(),
         dashboardAPI.admin.getPendingApprovals(),
       ]);
       
+      console.log('✅ Admin stats loaded:', statsData);
+      console.log('✅ Pending approvals loaded:', approvalsData);
+      
       setStats(statsData);
       setPendingApprovals(approvalsData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
-      console.error('Error loading admin dashboard:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard data';
+      setError(errorMessage);
+      console.error('❌ Error loading admin dashboard:', err);
+      
+      // Provide fallback data to prevent complete dashboard failure
+      setStats({
+        totalUsers: 0,
+        totalInfluencers: 0,
+        totalTokens: 0,
+        totalVolume: 0,
+        totalFees: 0,
+        pendingApprovals: 0,
+        activeUsers24h: 0,
+        newUsersToday: 0,
+        approvedInfluencers: 0,
+        totalPledgers: 0,
+        totalEthPledged: 0,
+        totalUsdcPledged: 0
+      });
+      setPendingApprovals([]);
     } finally {
       setLoading(false);
     }
@@ -383,12 +499,17 @@ export const useAdminDashboard = () => {
 
   const processApproval = async (id: string, approved: boolean) => {
     try {
+      console.log(`🔄 Processing approval for ID ${id}: ${approved ? 'approved' : 'rejected'}`);
+      
       const result = await dashboardAPI.admin.processApproval(id, approved);
+      
+      console.log('✅ Approval processed successfully:', result);
+      
       // Refresh data after processing approval
       await loadData();
       return result;
     } catch (error) {
-      console.error('Error processing approval:', error);
+      console.error('❌ Error processing approval:', error);
       throw error;
     }
   };

@@ -1,12 +1,53 @@
-// Enhanced admin routes to ADD to your existing Backend/routes/dashboardRoutes.js
-// Replace the existing admin section (lines 275-360) with these enhanced versions:
+// Backend/routes/adminDashboardRoutes.js - Enhanced admin dashboard routes
+const express = require('express');
+const router = express.Router();
+const db = require('../database/db');
+const admin = require('firebase-admin');
 
-// ======================
-// ENHANCED ADMIN ROUTES
-// ======================
+// Middleware to verify authentication
+const requireAuth = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Missing authorization token' });
+  }
+
+  const idToken = authHeader.split('Bearer ')[1];
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    req.user = decoded;
+    
+    // Get user from database
+    const result = await db.query(
+      'SELECT * FROM users WHERE email = $1 OR firebase_uid = $2',
+      [decoded.email, decoded.uid]
+    );
+    
+    if (result.rows.length > 0) {
+      req.dbUser = result.rows[0];
+    } else {
+      return res.status(404).json({ error: 'User not found in database' });
+    }
+    
+    next();
+  } catch (err) {
+    console.error('Authentication failed:', err);
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+};
+
+// Middleware to check admin status
+const requireAdmin = (req, res, next) => {
+  if (req.dbUser?.status !== 'admin') {
+    return res.status(403).json({ 
+      error: 'Admin access required',
+      current: req.dbUser?.status
+    });
+  }
+  next();
+};
 
 // GET /api/dashboard/admin/stats - Enhanced platform statistics
-router.get('/admin/stats', requireAuth, requireStatus('admin'), async (req, res) => {
+router.get('/stats', requireAuth, requireAdmin, async (req, res) => {
   try {
     console.log('📊 Fetching enhanced admin stats for user:', req.dbUser.email);
     
@@ -29,9 +70,7 @@ router.get('/admin/stats', requireAuth, requireStatus('admin'), async (req, res)
           COUNT(*) as total_influencers,
           COUNT(CASE WHEN status = 'live' THEN 1 END) as live_tokens,
           COUNT(CASE WHEN is_approved = true THEN 1 END) as approved_influencers,
-          COUNT(CASE WHEN status = 'pledging' AND is_approved = false 
-                      AND COALESCE(total_pledged_eth, 0) >= COALESCE(pledge_threshold_eth, 0)
-                      AND pledge_threshold_eth > 0 THEN 1 END) as pending_approvals
+          COUNT(CASE WHEN status = 'pledging' AND is_approved = false THEN 1 END) as pending_approvals
         FROM influencers
       `),
       
@@ -80,7 +119,7 @@ router.get('/admin/stats', requireAuth, requireStatus('admin'), async (req, res)
       totalUsdcPledged: parseFloat(pledgeStats.total_usdc_pledged || 0)
     };
 
-    console.log('✅ Enhanced admin stats loaded successfully:', response);
+    console.log('✅ Admin stats loaded successfully:', response);
     res.json(response);
 
   } catch (error) {
@@ -93,7 +132,7 @@ router.get('/admin/stats', requireAuth, requireStatus('admin'), async (req, res)
 });
 
 // GET /api/dashboard/admin/pending-approvals - Enhanced pending approvals with progress
-router.get('/admin/pending-approvals', requireAuth, requireStatus('admin'), async (req, res) => {
+router.get('/pending-approvals', requireAuth, requireAdmin, async (req, res) => {
   try {
     console.log('⏳ Fetching enhanced pending approvals for admin:', req.dbUser.email);
     
@@ -149,7 +188,7 @@ router.get('/admin/pending-approvals', requireAuth, requireStatus('admin'), asyn
       };
     });
 
-    console.log(`✅ Enhanced pending approvals loaded: ${approvals.length} pending`);
+    console.log(`✅ Pending approvals loaded: ${approvals.length} pending`);
     res.json(approvals);
 
   } catch (error) {
@@ -162,7 +201,7 @@ router.get('/admin/pending-approvals', requireAuth, requireStatus('admin'), asyn
 });
 
 // POST /api/dashboard/admin/approve/:id - Enhanced approval process
-router.post('/admin/approve/:id', requireAuth, requireStatus('admin'), async (req, res) => {
+router.post('/approve/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     console.log('✅ Processing approval for influencer ID:', req.params.id);
     const { id } = req.params;
@@ -189,22 +228,18 @@ router.post('/admin/approve/:id', requireAuth, requireStatus('admin'), async (re
         WHERE id = $1
       `, [id]);
       
-      // Log the approval event (if you have pledge_events table)
-      try {
-        await db.query(`
-          INSERT INTO pledge_events (event_type, influencer_address, event_data)
-          VALUES ('approved', $1, $2)
-        `, [
-          influencer.wallet_address,
-          JSON.stringify({
-            approved_by: req.dbUser.email,
-            approved_at: new Date().toISOString(),
-            influencer_name: influencer.name
-          })
-        ]);
-      } catch (eventError) {
-        console.log('Note: Could not log event (pledge_events table may not exist):', eventError.message);
-      }
+      // Log the approval event
+      await db.query(`
+        INSERT INTO pledge_events (event_type, influencer_address, event_data)
+        VALUES ('approved', $1, $2)
+      `, [
+        influencer.wallet_address,
+        JSON.stringify({
+          approved_by: req.dbUser.email,
+          approved_at: new Date().toISOString(),
+          influencer_name: influencer.name
+        })
+      ]);
       
       console.log(`✅ Influencer ${influencer.name} (${id}) approved by admin ${req.dbUser.email}`);
       
@@ -215,22 +250,18 @@ router.post('/admin/approve/:id', requireAuth, requireStatus('admin'), async (re
         WHERE id = $1
       `, [id]);
       
-      // Log the rejection event (if you have pledge_events table)
-      try {
-        await db.query(`
-          INSERT INTO pledge_events (event_type, influencer_address, event_data)
-          VALUES ('rejected', $1, $2)
-        `, [
-          influencer.wallet_address,
-          JSON.stringify({
-            rejected_by: req.dbUser.email,
-            rejected_at: new Date().toISOString(),
-            influencer_name: influencer.name
-          })
-        ]);
-      } catch (eventError) {
-        console.log('Note: Could not log event (pledge_events table may not exist):', eventError.message);
-      }
+      // Log the rejection event
+      await db.query(`
+        INSERT INTO pledge_events (event_type, influencer_address, event_data)
+        VALUES ('rejected', $1, $2)
+      `, [
+        influencer.wallet_address,
+        JSON.stringify({
+          rejected_by: req.dbUser.email,
+          rejected_at: new Date().toISOString(),
+          influencer_name: influencer.name
+        })
+      ]);
       
       console.log(`❌ Influencer ${influencer.name} (${id}) rejected by admin ${req.dbUser.email}`);
     }
@@ -258,68 +289,35 @@ router.post('/admin/approve/:id', requireAuth, requireStatus('admin'), async (re
 });
 
 // GET /api/dashboard/admin/recent-activity - Get recent platform activity
-router.get('/admin/recent-activity', requireAuth, requireStatus('admin'), async (req, res) => {
+router.get('/recent-activity', requireAuth, requireAdmin, async (req, res) => {
   try {
     console.log('📈 Fetching recent platform activity...');
     
-    // Try to get from pledge_events table, fall back to pledges if it doesn't exist
-    let query;
-    try {
-      query = `
-        SELECT 
-          event_type,
-          influencer_address,
-          user_address,
-          eth_amount,
-          usdc_amount,
-          event_data,
-          created_at
-        FROM pledge_events
-        ORDER BY created_at DESC
-        LIMIT 20
-      `;
-      
-      const result = await db.query(query);
-      
-      const activities = result.rows.map(row => ({
-        type: row.event_type,
-        description: generateActivityDescription(row),
-        timestamp: row.created_at,
-        user: row.user_address || 'System',
-        amount: row.eth_amount || row.usdc_amount || null
-      }));
-      
-      res.json(activities);
-      
-    } catch (tableError) {
-      // Fallback to recent pledges if pledge_events table doesn't exist
-      console.log('pledge_events table not found, using recent pledges as fallback');
-      
-      const fallbackQuery = `
-        SELECT 
-          p.created_at,
-          p.user_address,
-          p.eth_amount,
-          p.usdc_amount,
-          i.name as influencer_name
-        FROM pledges p
-        JOIN influencers i ON p.influencer_address = i.wallet_address
-        ORDER BY p.created_at DESC
-        LIMIT 20
-      `;
-      
-      const fallbackResult = await db.query(fallbackQuery);
-      
-      const activities = fallbackResult.rows.map(row => ({
-        type: 'pledge_made',
-        description: `New pledge to ${row.influencer_name}: ${row.eth_amount || row.usdc_amount} ${row.eth_amount ? 'ETH' : 'USDC'}`,
-        timestamp: row.created_at,
-        user: row.user_address,
-        amount: row.eth_amount || row.usdc_amount
-      }));
-      
-      res.json(activities);
-    }
+    const query = `
+      SELECT 
+        event_type,
+        influencer_address,
+        user_address,
+        eth_amount,
+        usdc_amount,
+        event_data,
+        created_at
+      FROM pledge_events
+      ORDER BY created_at DESC
+      LIMIT 20
+    `;
+    
+    const result = await db.query(query);
+    
+    const activities = result.rows.map(row => ({
+      type: row.event_type,
+      description: generateActivityDescription(row),
+      timestamp: row.created_at,
+      user: row.user_address || 'System',
+      amount: row.eth_amount || row.usdc_amount || null
+    }));
+    
+    res.json(activities);
 
   } catch (error) {
     console.error('❌ Error fetching recent activity:', error);
@@ -348,8 +346,8 @@ function generateActivityDescription(event) {
   }
 }
 
-// GET /api/dashboard/admin/users - Get user management data (enhanced)
-router.get('/admin/users', requireAuth, requireStatus('admin'), async (req, res) => {
+// GET /api/dashboard/admin/users - Get user management data (future implementation)
+router.get('/users', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { page = 1, limit = 50, status, search } = req.query;
     const offset = (page - 1) * limit;
@@ -382,23 +380,14 @@ router.get('/admin/users', requireAuth, requireStatus('admin'), async (req, res)
     const result = await db.query(query, params);
     
     // Get total count
-    let countQuery = 'SELECT COUNT(*) FROM users WHERE 1=1';
-    const countParams = [];
-    let countParamCount = 0;
-    
-    if (status && status !== 'all') {
-      countParamCount++;
-      countQuery += ` AND status = $${countParamCount}`;
-      countParams.push(status);
-    }
-    
-    if (search) {
-      countParamCount++;
-      countQuery += ` AND (email ILIKE $${countParamCount} OR display_name ILIKE $${countParamCount})`;
-      countParams.push(`%${search}%`);
-    }
-    
-    const countResult = await db.query(countQuery, countParams);
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM users WHERE 1=1' + 
+      (status && status !== 'all' ? ' AND status = $1' : '') +
+      (search ? ' AND (email ILIKE $' + (status && status !== 'all' ? '2' : '1') + ' OR display_name ILIKE $' + (status && status !== 'all' ? '2' : '1') + ')' : ''),
+      status && status !== 'all' ? 
+        (search ? [status, `%${search}%`] : [status]) : 
+        (search ? [`%${search}%`] : [])
+    );
     
     res.json({
       users: result.rows,
@@ -418,3 +407,5 @@ router.get('/admin/users', requireAuth, requireStatus('admin'), async (req, res)
     });
   }
 });
+
+module.exports = router;

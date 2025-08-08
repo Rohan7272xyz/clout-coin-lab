@@ -1,4 +1,4 @@
-// src/lib/auth/auth-context.tsx - Enhanced with debug logging
+// src/lib/auth/auth-context.tsx - Updated without browser status
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -13,7 +13,7 @@ interface DatabaseUser {
   created_at: string;
   total_invested: number;
   portfolio_value: number;
-  status?: 'browser' | 'investor' | 'influencer' | 'admin';
+  status: 'investor' | 'influencer' | 'admin'; // Removed 'browser' since they're not stored in DB
 }
 
 interface AuthContextType {
@@ -134,7 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log("📡 Fetch response:");
           console.log("  - Status:", response.status);
           console.log("  - Status Text:", response.statusText);
-          console.log("  - Headers:", Object.fromEntries(response.headers.entries()));
 
           if (response.ok) {
             const userData = await response.json();

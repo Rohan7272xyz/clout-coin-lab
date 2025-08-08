@@ -1,135 +1,72 @@
-// src/pages/AdminDashboard.tsx
+// src/pages/AdminDashboard.tsx - Updated with real database integration
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { Crown, Users, Coins, TrendingUp, AlertTriangle, CheckCircle, XCircle, Eye, DollarSign, Activity } from 'lucide-react';
+import { Crown, Users, Coins, TrendingUp, AlertTriangle, CheckCircle, XCircle, Eye, DollarSign, Activity, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Header from '@/components/ui/header';
+import { useAdminDashboard } from '@/lib/dashboard/dashboardAPI';
+import { toast } from '@/components/ui/sonner';
 
-interface User {
-  id: number;
-  email: string;
-  display_name: string;
-  wallet_address: string;
-  status: string;
-  total_invested: number;
-  created_at: string;
-}
-
-interface Influencer {
-  id: number;
+interface PendingApproval {
+  id: string;
+  type: string;
   name: string;
-  handle: string;
-  email: string;
-  followers_count: number;
-  category: string;
-  status: string;
-  total_pledged_eth: number;
-  pledge_threshold_eth: number;
-  created_at: string;
+  details: string;
+  requestedAt: string;
+  requestedBy: string;
+  progress?: number;
 }
 
-interface PlatformStats {
+interface AdminStats {
   totalUsers: number;
   totalInfluencers: number;
   totalTokens: number;
   totalVolume: number;
+  totalFees: number;
   pendingApprovals: number;
-  activeTokens: number;
+  activeUsers24h: number;
+  newUsersToday: number;
+  approvedInfluencers: number;
+  totalPledgers: number;
+  totalEthPledged: number;
+  totalUsdcPledged: number;
 }
 
 const AdminDashboard = () => {
-  const { user } = useAuth();
-  const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
-  const [influencers, setInfluencers] = useState<Influencer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { databaseUser } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
+  
+  // Use the real database integration hook
+  const {
+    stats,
+    pendingApprovals,
+    loading,
+    error,
+    refreshData,
+    processApproval
+  } = useAdminDashboard();
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  // Handle approval action
+  const handleApproval = async (id: string, approved: boolean) => {
     try {
-      const token = await user?.getIdToken();
-      if (!token) return;
-
-      // Mock data for now since the API endpoints might not exist yet
-      setStats({
-        totalUsers: 42,
-        totalInfluencers: 8,
-        totalTokens: 3,
-        totalVolume: 145.7,
-        pendingApprovals: 2,
-        activeTokens: 3
-      });
-
-      setUsers([
-        {
-          id: 1,
-          email: 'john@example.com',
-          display_name: 'John Doe',
-          wallet_address: '0x123...abc',
-          status: 'investor',
-          total_invested: 2.5,
-          created_at: '2024-01-15'
-        },
-        {
-          id: 2,
-          email: 'jane@example.com',
-          display_name: 'Jane Smith',
-          wallet_address: '0x456...def',
-          status: 'influencer',
-          total_invested: 0,
-          created_at: '2024-01-20'
-        }
-      ]);
-
-      setInfluencers([
-        {
-          id: 1,
-          name: 'Crypto King',
-          handle: '@cryptoking',
-          email: 'king@crypto.com',
-          followers_count: 1500000,
-          category: 'Crypto',
-          status: 'approved',
-          total_pledged_eth: 15.5,
-          pledge_threshold_eth: 10,
-          created_at: '2024-01-10'
-        }
-      ]);
-
+      await processApproval(id, approved);
+      toast.success(`Influencer ${approved ? 'approved' : 'rejected'} successfully`);
     } catch (error) {
-      console.error('Error fetching admin data:', error);
-    } finally {
-      setLoading(false);
+      toast.error(`Failed to ${approved ? 'approve' : 'reject'} influencer`);
+      console.error('Approval error:', error);
     }
   };
 
-  const updateUserStatus = async (userId: number, newStatus: string) => {
+  const handleRefresh = async () => {
     try {
-      const token = await user?.getIdToken();
-      if (!token) return;
-
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/upgrade-status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ user_id: userId, new_status: newStatus })
-      });
-
-      if (response.ok) {
-        fetchDashboardData();
-      }
+      await refreshData();
+      toast.success('Dashboard data refreshed');
     } catch (error) {
-      console.error('Error updating user status:', error);
+      toast.error('Failed to refresh data');
     }
   };
 
@@ -142,13 +79,48 @@ const AdminDashboard = () => {
       pending: { color: 'bg-yellow-500', text: 'Pending' },
       approved: { color: 'bg-green-500', text: 'Approved' },
       rejected: { color: 'bg-red-500', text: 'Rejected' },
-      live: { color: 'bg-emerald-500', text: 'Live' }
+      live: { color: 'bg-emerald-500', text: 'Live' },
+      pledging: { color: 'bg-blue-500', text: 'Pledging' }
     };
 
     const config = statusConfig[status as keyof typeof statusConfig] || { color: 'bg-gray-500', text: status };
     return <Badge className={`${config.color} text-white`}>{config.text}</Badge>;
   };
 
+  const formatCurrency = (amount: number, decimals = 2) => {
+    if (amount >= 1000000) return `$${(amount / 1000000).toFixed(decimals)}M`;
+    if (amount >= 1000) return `$${(amount / 1000).toFixed(decimals)}K`;
+    return `$${amount.toFixed(decimals)}`;
+  };
+
+  const formatEth = (amount: number, decimals = 3) => {
+    return `${amount.toFixed(decimals)} ETH`;
+  };
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black">
+        <Header />
+        <div className="flex items-center justify-center min-h-[calc(100vh-80px)] pt-20">
+          <Card className="bg-zinc-900 border-zinc-800 max-w-md">
+            <CardHeader className="text-center">
+              <CardTitle className="text-red-400">Error Loading Dashboard</CardTitle>
+              <CardDescription>{error}</CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Button onClick={handleRefresh} className="bg-primary hover:bg-primary/90 text-black">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Try Again
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-black">
@@ -171,53 +143,122 @@ const AdminDashboard = () => {
       <div className="pt-20 p-6">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Crown className="w-8 h-8 text-yellow-500" />
-            <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <Crown className="w-8 h-8 text-yellow-500" />
+                <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+              </div>
+              <p className="text-gray-400">Manage CoinFluence platform operations</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Logged in as: {databaseUser?.display_name || databaseUser?.email} • Status: {databaseUser?.status}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button onClick={handleRefresh} variant="outline" size="sm" className="border-zinc-700 hover:border-primary/50">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
           </div>
-          <p className="text-gray-400">Manage Token Factory platform operations</p>
         </div>
 
-        {/* Stats Overview */}
+        {/* Stats Overview - Using real data from database */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card className="bg-gray-900 border-gray-800">
+            <Card className="bg-zinc-900 border-zinc-800">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-gray-400">Total Users</CardTitle>
                 <Users className="h-4 w-4 text-blue-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-white">{stats.totalUsers}</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  +{stats.newUsersToday} today
+                </p>
               </CardContent>
             </Card>
 
-            <Card className="bg-gray-900 border-gray-800">
+            <Card className="bg-zinc-900 border-zinc-800">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-gray-400">Total Influencers</CardTitle>
                 <TrendingUp className="h-4 w-4 text-purple-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-white">{stats.totalInfluencers}</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {stats.approvedInfluencers || 0} approved
+                </p>
               </CardContent>
             </Card>
 
-            <Card className="bg-gray-900 border-gray-800">
+            <Card className="bg-zinc-900 border-zinc-800">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-400">Active Tokens</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-400">Live Tokens</CardTitle>
                 <Coins className="h-4 w-4 text-green-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-white">{stats.activeTokens}</div>
+                <div className="text-2xl font-bold text-white">{stats.totalTokens}</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Trading actively
+                </p>
               </CardContent>
             </Card>
 
-            <Card className="bg-gray-900 border-gray-800">
+            <Card className="bg-zinc-900 border-zinc-800">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-gray-400">Pending Approvals</CardTitle>
                 <AlertTriangle className="h-4 w-4 text-yellow-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-white">{stats.pendingApprovals}</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Awaiting review
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Additional Stats Row */}
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <Card className="bg-zinc-900 border-zinc-800">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-gray-400">Platform Volume</CardTitle>
+                <DollarSign className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-white">{formatCurrency(stats.totalVolume)}</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formatCurrency(stats.totalFees)} in fees
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-zinc-900 border-zinc-800">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-gray-400">Total Pledged</CardTitle>
+                <Activity className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-white">{formatEth(stats.totalEthPledged || 0)}</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  From {stats.totalPledgers || 0} pledgers
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-zinc-900 border-zinc-800">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-gray-400">Active Users (24h)</CardTitle>
+                <Users className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-white">{stats.activeUsers24h}</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Platform engagement
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -225,165 +266,133 @@ const AdminDashboard = () => {
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-gray-900 border-gray-800">
+          <TabsList className="bg-zinc-900 border-zinc-800">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="approvals">
+              Pending Approvals 
+              {pendingApprovals && pendingApprovals.length > 0 && (
+                <Badge className="ml-2 bg-yellow-500 text-black text-xs">
+                  {pendingApprovals.length}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="influencers">Influencers</TabsTrigger>
-            <TabsTrigger value="tokens">Tokens</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Recent Activity */}
-              <Card className="bg-gray-900 border-gray-800">
+              <Card className="bg-zinc-900 border-zinc-800">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Activity className="w-5 h-5" />
-                    Recent Activity
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-gray-800 rounded">
-                      <span className="text-sm">New user registered</span>
-                      <span className="text-xs text-gray-400">2 hours ago</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-800 rounded">
-                      <span className="text-sm">Influencer approved</span>
-                      <span className="text-xs text-gray-400">4 hours ago</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-800 rounded">
-                      <span className="text-sm">Token deployed</span>
-                      <span className="text-xs text-gray-400">6 hours ago</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Platform Health */}
-              <Card className="bg-gray-900 border-gray-800">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="w-5 h-5" />
-                    Platform Metrics
+                    Platform Health
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex justify-between">
-                      <span className="text-gray-400">Total Volume</span>
-                      <span className="font-semibold">{stats?.totalVolume || 0} ETH</span>
+                      <span className="text-gray-400">System Status</span>
+                      <Badge className="bg-green-500 text-white">Operational</Badge>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-400">Platform Revenue</span>
-                      <span className="font-semibold">{((stats?.totalVolume || 0) * 0.05).toFixed(3)} ETH</span>
+                      <span className="text-gray-400">Database</span>
+                      <Badge className="bg-green-500 text-white">Connected</Badge>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-400">Active Tokens</span>
-                      <span className="font-semibold">{stats?.activeTokens || 0}</span>
+                      <span className="text-gray-400">API Health</span>
+                      <Badge className="bg-green-500 text-white">Healthy</Badge>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Last Updated</span>
+                      <span className="text-white text-sm">{new Date().toLocaleTimeString()}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Quick Actions */}
+              <Card className="bg-zinc-900 border-zinc-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Crown className="w-5 h-5" />
+                    Quick Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <Button 
+                      className="w-full justify-start bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30"
+                      onClick={() => setActiveTab('approvals')}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Review Pending Approvals ({pendingApprovals?.length || 0})
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="w-full justify-start border-zinc-700 hover:border-primary/50"
+                      onClick={() => window.location.href = '/admin/token-factory'}
+                    >
+                      <Coins className="w-4 h-4 mr-2" />
+                      Access Token Factory
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="w-full justify-start border-zinc-700 hover:border-primary/50"
+                      onClick={() => setActiveTab('users')}
+                    >
+                      <Users className="w-4 h-4 mr-2" />
+                      Manage Users
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          <TabsContent value="users" className="space-y-6">
-            <Card className="bg-gray-900 border-gray-800">
+          <TabsContent value="approvals" className="space-y-6">
+            <Card className="bg-zinc-900 border-zinc-800">
               <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>Manage user roles and permissions</CardDescription>
+                <CardTitle>Pending Approvals</CardTitle>
+                <CardDescription>Review influencers who have met their pledge thresholds</CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-gray-800">
-                      <TableHead>Email</TableHead>
-                      <TableHead>Display Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Invested</TableHead>
-                      <TableHead>Joined</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.map((user) => (
-                      <TableRow key={user.id} className="border-gray-800">
-                        <TableCell className="font-medium">{user.email}</TableCell>
-                        <TableCell>{user.display_name || 'N/A'}</TableCell>
-                        <TableCell>{getStatusBadge(user.status)}</TableCell>
-                        <TableCell>{user.total_invested} ETH</TableCell>
-                        <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateUserStatus(user.id, 'investor')}
-                              disabled={user.status === 'investor'}
-                            >
-                              Make Investor
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateUserStatus(user.id, 'admin')}
-                              disabled={user.status === 'admin'}
-                            >
-                              Make Admin
-                            </Button>
-                          </div>
-                        </TableCell>
+                {pendingApprovals && pendingApprovals.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-zinc-800">
+                        <TableHead>Name</TableHead>
+                        <TableHead>Details</TableHead>
+                        <TableHead>Requested</TableHead>
+                        <TableHead>Progress</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="influencers" className="space-y-6">
-            <Card className="bg-gray-900 border-gray-800">
-              <CardHeader>
-                <CardTitle>Influencer Management</CardTitle>
-                <CardDescription>Review and approve influencer applications</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-gray-800">
-                      <TableHead>Name</TableHead>
-                      <TableHead>Handle</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Followers</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Pledged/Threshold</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {influencers.map((influencer) => (
-                      <TableRow key={influencer.id} className="border-gray-800">
-                        <TableCell className="font-medium">{influencer.name}</TableCell>
-                        <TableCell className="text-purple-400">{influencer.handle}</TableCell>
-                        <TableCell>{influencer.category}</TableCell>
-                        <TableCell>{influencer.followers_count?.toLocaleString()}</TableCell>
-                        <TableCell>{getStatusBadge(influencer.status)}</TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            <div>{influencer.total_pledged_eth} / {influencer.pledge_threshold_eth} ETH</div>
-                            <div className="text-gray-400 text-xs">
-                              {((influencer.total_pledged_eth / influencer.pledge_threshold_eth) * 100).toFixed(1)}%
+                    </TableHeader>
+                    <TableBody>
+                      {pendingApprovals.map((approval) => (
+                        <TableRow key={approval.id} className="border-zinc-800">
+                          <TableCell className="font-medium">{approval.name}</TableCell>
+                          <TableCell className="max-w-md">
+                            <div className="text-sm text-gray-400">
+                              {approval.details}
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {influencer.status === 'pending' && (
+                          </TableCell>
+                          <TableCell>{new Date(approval.requestedAt).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            {approval.progress && (
+                              <div className="text-sm">
+                                <div className="text-primary font-medium">{approval.progress.toFixed(1)}%</div>
+                                <div className="text-gray-400 text-xs">of threshold</div>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             <div className="flex gap-2">
                               <Button
                                 size="sm"
-                                variant="outline"
-                                className="text-green-400 border-green-400 hover:bg-green-400 hover:text-black"
+                                onClick={() => handleApproval(approval.id, true)}
+                                className="bg-green-500 hover:bg-green-600 text-white"
                               >
                                 <CheckCircle className="w-4 h-4 mr-1" />
                                 Approve
@@ -391,42 +400,69 @@ const AdminDashboard = () => {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="text-red-400 border-red-400 hover:bg-red-400 hover:text-black"
+                                onClick={() => handleApproval(approval.id, false)}
+                                className="border-red-500 text-red-400 hover:bg-red-500 hover:text-white"
                               >
                                 <XCircle className="w-4 h-4 mr-1" />
                                 Reject
                               </Button>
                             </div>
-                          )}
-                          {influencer.status !== 'pending' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-gray-400"
-                            >
-                              <Eye className="w-4 h-4 mr-1" />
-                              View
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="text-center py-8 text-gray-400">
+                    <CheckCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p className="mb-2">No pending approvals</p>
+                    <p className="text-sm">All influencer requests have been processed</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="tokens" className="space-y-6">
-            <Card className="bg-gray-900 border-gray-800">
+          <TabsContent value="users" className="space-y-6">
+            <Card className="bg-zinc-900 border-zinc-800">
               <CardHeader>
-                <CardTitle>Token Management</CardTitle>
-                <CardDescription>Monitor deployed tokens and their performance</CardDescription>
+                <CardTitle>User Management</CardTitle>
+                <CardDescription>Manage user roles and permissions (Full user management coming soon)</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-center py-8 text-gray-400">
-                  <Coins className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>Token management features coming soon...</p>
+                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className="mb-2">User management interface coming soon</p>
+                  <p className="text-sm">For now, user status changes can be made through the API</p>
+                  <div className="mt-4 text-xs bg-zinc-800 p-3 rounded-lg">
+                    <p className="text-white mb-1">Current user counts:</p>
+                    <p>Total Users: {stats?.totalUsers || 0}</p>
+                    <p>New Today: {stats?.newUsersToday || 0}</p>
+                    <p>Active 24h: {stats?.activeUsers24h || 0}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="influencers" className="space-y-6">
+            <Card className="bg-zinc-900 border-zinc-800">
+              <CardHeader>
+                <CardTitle>Influencer Management</CardTitle>
+                <CardDescription>Overview of all influencers on the platform</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-gray-400">
+                  <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className="mb-2">Detailed influencer management coming soon</p>
+                  <p className="text-sm">Currently {stats?.totalInfluencers || 0} influencers on platform</p>
+                  <div className="mt-4 text-xs bg-zinc-800 p-3 rounded-lg">
+                    <p className="text-white mb-1">Quick stats:</p>
+                    <p>Total Influencers: {stats?.totalInfluencers || 0}</p>
+                    <p>Approved: {stats?.approvedInfluencers || 0}</p>
+                    <p>Pending Approval: {stats?.pendingApprovals || 0}</p>
+                    <p>Live Tokens: {stats?.totalTokens || 0}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
