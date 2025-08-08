@@ -1,10 +1,11 @@
-// src/components/pledge/PledgeModal.tsx - Updated with proper API integration
+// src/components/pledge/PledgeModal.tsx - Fixed with proper API integration and error handling
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   X, 
   Check, 
@@ -14,7 +15,9 @@ import {
   AlertCircle,
   TrendingUp,
   Clock,
-  Bell
+  Bell,
+  Loader2,
+  ExternalLink
 } from "lucide-react";
 import { useAccount } from "wagmi";
 import type { InfluencerPledgeData } from "@/lib/pledge/types";
@@ -26,13 +29,40 @@ interface PledgeModalProps {
   onClose: () => void;
   influencer: InfluencerPledgeData;
   onPledgeSubmit?: (amount: string, currency: 'ETH' | 'USDC') => void;
+  onSuccess?: () => void; // Callback to refresh data after successful pledge
 }
 
-const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit }: PledgeModalProps) => {
+interface PledgeResponse {
+  success: boolean;
+  message: string;
+  pledge: {
+    id: number;
+    userAddress: string;
+    influencerAddress: string;
+    ethAmount: number;
+    usdcAmount: number;
+    txHash: string;
+    blockNumber: number;
+    createdAt: string;
+    mock: boolean;
+  };
+  influencerTotals: {
+    totalPledgedETH: number;
+    totalPledgedUSDC: number;
+    pledgeCount: number;
+    thresholdETH: number;
+    thresholdUSDC: number;
+  };
+  thresholdMet: boolean;
+}
+
+const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit, onSuccess }: PledgeModalProps) => {
   const { isConnected, address } = useAccount();
   const [pledgeAmount, setPledgeAmount] = useState("");
   const [selectedCurrency, setSelectedCurrency] = useState<'ETH' | 'USDC'>('ETH');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -45,47 +75,39 @@ const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit }: PledgeModa
   const showETH = parseFloat(influencer.thresholdETH) > 0;
   const showUSDC = parseFloat(influencer.thresholdUSDC) > 0;
 
-  const submitPledgeToDatabase = async (amount: string, currency: 'ETH' | 'USDC', txHash?: string) => {
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      
-      // For development, use mock endpoint if no transaction hash
-      const endpoint = txHash ? '/api/pledge/submit' : '/api/pledge/mock';
-      
-      const payload = {
-        userAddress: address,
-        influencerAddress: influencer.address,
-        amount: amount,
-        currency: currency,
-        ...(txHash && { 
-          txHash,
-          blockNumber: Math.floor(Math.random() * 1000000) // Mock block number
-        })
-      };
+  const submitPledgeToDatabase = async (amount: string, currency: 'ETH' | 'USDC', txHash?: string): Promise<PledgeResponse> => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    
+    const payload = {
+      userAddress: address,
+      influencerAddress: influencer.address,
+      amount: amount,
+      currency: currency,
+      ...(txHash && { 
+        txHash,
+        blockNumber: Math.floor(Math.random() * 1000000) + 18000000 // Mock block number for demo
+      })
+    };
 
-      console.log('📤 Submitting pledge to database:', payload);
+    console.log('📤 Submitting pledge to database:', payload);
 
-      const response = await fetch(`${apiUrl}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
-      });
+    const response = await fetch(`${apiUrl}/api/pledge/submit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log('✅ Pledge recorded successfully:', result);
-      
-      return result;
-    } catch (error) {
-      console.error('❌ Error submitting pledge to database:', error);
-      throw error;
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
     }
+
+    const result = await response.json();
+    console.log('✅ Pledge recorded successfully:', result);
+    
+    return result;
   };
 
   const handleSubmit = async () => {
@@ -99,37 +121,67 @@ const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit }: PledgeModa
       return;
     }
 
+    // Validate amount based on currency
+    const amount = parseFloat(pledgeAmount);
+    if (selectedCurrency === 'ETH' && amount < 0.001) {
+      toast.error("Minimum pledge amount is 0.001 ETH");
+      return;
+    }
+    if (selectedCurrency === 'USDC' && amount < 1) {
+      toast.error("Minimum pledge amount is 1 USDC");
+      return;
+    }
+
     setIsSubmitting(true);
+    setSubmitError(null);
     
     try {
       console.log('🔄 Starting pledge submission...');
       
       // For demo purposes, we'll simulate a blockchain transaction
-      // In production, this would interact with your smart contract
+      // In production, this would interact with your smart contract first
       
       // Simulate transaction delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Submit to database (with mock data for now)
-      const result = await submitPledgeToDatabase(pledgeAmount, selectedCurrency);
+      // Generate a mock transaction hash for demo
+      const mockTxHash = `0x${Math.random().toString(16).substring(2)}${Date.now().toString(16)}`;
+      
+      // Submit to database
+      const result = await submitPledgeToDatabase(pledgeAmount, selectedCurrency, mockTxHash);
+      
+      // Store transaction hash for display
+      setLastTxHash(result.pledge.txHash);
       
       // Call the parent callback if provided
       onPledgeSubmit?.(pledgeAmount, selectedCurrency);
       
-      // Show success message
-      toast.success(`Successfully pledged ${pledgeAmount} ${selectedCurrency} to ${influencer.name}!`);
+      // Show success message with more details
+      const successMessage = result.thresholdMet 
+        ? `🎉 Pledge successful! ${influencer.name}'s funding goal has been reached!`
+        : `✅ Successfully pledged ${pledgeAmount} ${selectedCurrency} to ${influencer.name}!`;
       
-      // Close modal
-      onClose();
+      toast.success(successMessage, {
+        description: result.thresholdMet ? "This influencer is now ready for approval!" : undefined,
+        duration: 5000
+      });
       
-      // Optional: Refresh the page to show updated data
+      // Reset form
+      setPledgeAmount("");
+      
+      // Call success callback to refresh parent data
+      onSuccess?.();
+      
+      // Keep modal open briefly to show success state, then close
       setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+        onClose();
+      }, 2000);
       
     } catch (error) {
       console.error("Pledge submission failed:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to submit pledge. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Failed to submit pledge. Please try again.";
+      setSubmitError(errorMessage);
+      toast.error(`Pledge failed: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -175,6 +227,7 @@ const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit }: PledgeModa
         <button
           onClick={onClose}
           className="absolute top-4 right-4 z-10 p-1 rounded-full hover:bg-zinc-800 transition-colors"
+          disabled={isSubmitting}
         >
           <X className="w-4 h-4 text-gray-400" />
         </button>
@@ -277,6 +330,32 @@ const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit }: PledgeModa
             </div>
           </div>
 
+          {/* Error Display */}
+          {submitError && (
+            <Alert className="mb-4 border-red-500/20 bg-red-500/5">
+              <AlertCircle className="h-4 w-4 text-red-400" />
+              <AlertDescription className="text-red-400 text-sm">
+                {submitError}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Success Display */}
+          {lastTxHash && !submitError && (
+            <Alert className="mb-4 border-green-500/20 bg-green-500/5">
+              <Check className="h-4 w-4 text-green-400" />
+              <AlertDescription className="text-green-400 text-sm">
+                Pledge submitted successfully! 
+                <button 
+                  onClick={() => window.open(`https://etherscan.io/tx/${lastTxHash}`, '_blank')}
+                  className="ml-2 underline hover:no-underline inline-flex items-center"
+                >
+                  View transaction <ExternalLink className="w-3 h-3 ml-1" />
+                </button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Pledge Form */}
           {!influencer.isLaunched && (
             <div className="space-y-4">
@@ -288,6 +367,7 @@ const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit }: PledgeModa
                     size="sm"
                     className="flex-1"
                     onClick={() => setSelectedCurrency('ETH')}
+                    disabled={isSubmitting}
                   >
                     ETH
                   </Button>
@@ -298,6 +378,7 @@ const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit }: PledgeModa
                     size="sm"
                     className="flex-1"
                     onClick={() => setSelectedCurrency('USDC')}
+                    disabled={isSubmitting}
                   >
                     USDC
                   </Button>
@@ -311,13 +392,17 @@ const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit }: PledgeModa
                 </label>
                 <Input
                   type="number"
-                  placeholder={`0.1`}
+                  placeholder={selectedCurrency === 'ETH' ? '0.1' : '100'}
                   value={pledgeAmount}
                   onChange={(e) => setPledgeAmount(e.target.value)}
                   className="text-lg bg-zinc-800 border-zinc-700 text-white"
-                  step="0.001"
+                  step={selectedCurrency === 'ETH' ? '0.001' : '1'}
                   min="0"
+                  disabled={isSubmitting}
                 />
+                <div className="text-xs text-gray-500 mt-1">
+                  Minimum: {selectedCurrency === 'ETH' ? '0.001 ETH' : '1 USDC'}
+                </div>
               </div>
 
               {/* Submit Button */}
@@ -328,8 +413,8 @@ const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit }: PledgeModa
               >
                 {isSubmitting ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
-                    Pledging...
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Processing Pledge...
                   </>
                 ) : !isConnected ? (
                   <>
@@ -345,12 +430,12 @@ const PledgeModal = ({ isOpen, onClose, influencer, onPledgeSubmit }: PledgeModa
               </Button>
 
               {/* Warning */}
-              <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-                <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
-                <div className="text-xs text-yellow-600">
-                  <strong>Pre-Investment:</strong> Your funds will be held in escrow until the influencer's threshold is met and they approve the token launch.
-                </div>
-              </div>
+              <Alert className="border-yellow-500/20 bg-yellow-500/5">
+                <AlertCircle className="h-4 w-4 text-yellow-500" />
+                <AlertDescription className="text-yellow-600 text-xs">
+                  <strong>Pre-Investment:</strong> Your funds will be held in escrow until the influencer's threshold is met and they approve the token launch. You can withdraw your pledge at any time before the token launches.
+                </AlertDescription>
+              </Alert>
             </div>
           )}
 
