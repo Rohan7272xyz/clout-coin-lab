@@ -1,5 +1,5 @@
 // Backend/routes/authRoutes.js
-// Updated with better error handling and debugging
+// Updated with proper default status for new users
 
 const express = require('express');
 const router = express.Router();
@@ -70,7 +70,7 @@ router.post('/sync', verifyToken, async (req, res) => {
       user = updateResult.rows[0];
       console.log('✅ Updated existing user:', user.email, 'Status:', user.status);
     } else {
-      // Create new user
+      // Create new user with 'investor' status instead of 'browser'
       const insertResult = await db.query(`
         INSERT INTO users (
           firebase_uid, 
@@ -80,7 +80,7 @@ router.post('/sync', verifyToken, async (req, res) => {
           profile_picture_url,
           status
         )
-        VALUES ($1, $2, $3, $4, $5, 'browser')
+        VALUES ($1, $2, $3, $4, $5, 'investor')
         RETURNING *
       `, [firebaseUid, wallet_address, userEmail, display_name, profile_picture_url]);
       
@@ -210,7 +210,7 @@ router.post('/upgrade-status', verifyToken, async (req, res) => {
     }
 
     const { user_id, new_status } = req.body;
-    const validStatuses = ['browser', 'investor', 'influencer', 'admin'];
+    const validStatuses = ['investor', 'influencer', 'admin']; // Removed 'browser'
 
     if (!validStatuses.includes(new_status)) {
       return res.status(400).json({ error: 'Invalid status' });

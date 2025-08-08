@@ -1,5 +1,67 @@
-// Enhanced admin routes to ADD to your existing Backend/routes/dashboardRoutes.js
-// Replace the existing admin section (lines 275-360) with these enhanced versions:
+// Backend/routes/dashboardRoutes.js - Complete file with proper Express setup
+const express = require('express');
+const router = express.Router();
+const db = require('../database/db');
+const admin = require('firebase-admin');
+
+// Middleware to verify authentication
+const requireAuth = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Missing authorization token' });
+  }
+
+  const idToken = authHeader.split('Bearer ')[1];
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    req.user = decoded;
+    
+    // Get user from database
+    const result = await db.query(
+      'SELECT * FROM users WHERE email = $1 OR firebase_uid = $2',
+      [decoded.email, decoded.uid]
+    );
+    
+    if (result.rows.length > 0) {
+      req.dbUser = result.rows[0];
+    } else {
+      return res.status(404).json({ error: 'User not found in database' });
+    }
+    
+    next();
+  } catch (err) {
+    console.error('Authentication failed:', err);
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+};
+
+// Middleware to check user status
+const requireStatus = (requiredStatus) => {
+  return async (req, res, next) => {
+    if (!req.dbUser) {
+      return res.status(404).json({ error: 'User not found in database' });
+    }
+
+    const statusHierarchy = {
+      'investor': 1,
+      'influencer': 2,
+      'admin': 3
+    };
+
+    const userLevel = statusHierarchy[req.dbUser.status] || 0;
+    const requiredLevel = statusHierarchy[requiredStatus] || 0;
+
+    if (userLevel < requiredLevel) {
+      return res.status(403).json({ 
+        error: 'Insufficient permissions',
+        required: requiredStatus,
+        current: req.dbUser.status
+      });
+    }
+
+    next();
+  };
+};
 
 // ======================
 // ENHANCED ADMIN ROUTES
@@ -418,3 +480,110 @@ router.get('/admin/users', requireAuth, requireStatus('admin'), async (req, res)
     });
   }
 });
+
+// ======================
+// INVESTOR ROUTES
+// ======================
+
+// GET /api/dashboard/investor/portfolio - Get investor portfolio
+router.get('/investor/portfolio', requireAuth, requireStatus('investor'), async (req, res) => {
+  try {
+    console.log('📊 Fetching investor portfolio for user:', req.dbUser.email);
+    
+    // Mock portfolio data for now - replace with real data later
+    const portfolio = {
+      holdings: [],
+      summary: {
+        totalValue: 0,
+        totalCost: 0,
+        totalPnL: 0,
+        totalPnLPercent: 0,
+        holdingsCount: 0
+      }
+    };
+
+    res.json(portfolio);
+
+  } catch (error) {
+    console.error('❌ Error fetching portfolio:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch portfolio', 
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/dashboard/investor/pledges - Get investor pledges
+router.get('/investor/pledges', requireAuth, requireStatus('investor'), async (req, res) => {
+  try {
+    console.log('📊 Fetching investor pledges for user:', req.dbUser.email);
+    
+    // Mock pledges data for now - replace with real data later
+    const pledges = {
+      pledges: []
+    };
+
+    res.json(pledges);
+
+  } catch (error) {
+    console.error('❌ Error fetching pledges:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch pledges', 
+      details: error.message 
+    });
+  }
+});
+
+// ======================
+// INFLUENCER ROUTES
+// ======================
+
+// GET /api/dashboard/influencer/stats - Get influencer stats
+router.get('/influencer/stats', requireAuth, requireStatus('influencer'), async (req, res) => {
+  try {
+    console.log('📊 Fetching influencer stats for user:', req.dbUser.email);
+    
+    // Mock influencer data for now - replace with real data later
+    const stats = {
+      hasToken: false,
+      message: "Your influencer token hasn't been set up yet. Contact an admin to configure your token parameters."
+    };
+
+    res.json(stats);
+
+  } catch (error) {
+    console.error('❌ Error fetching influencer stats:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch influencer stats', 
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/dashboard/influencer/pledgers - Get influencer pledgers
+router.get('/influencer/pledgers', requireAuth, requireStatus('influencer'), async (req, res) => {
+  try {
+    console.log('📊 Fetching influencer pledgers for user:', req.dbUser.email);
+    
+    // Mock pledgers data for now - replace with real data later
+    const pledgers = {
+      pledgers: [],
+      totals: {
+        totalPledgers: 0,
+        totalEth: 0,
+        totalUsdc: 0
+      }
+    };
+
+    res.json(pledgers);
+
+  } catch (error) {
+    console.error('❌ Error fetching pledgers:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch pledgers', 
+      details: error.message 
+    });
+  }
+});
+
+module.exports = router;
