@@ -1,4 +1,4 @@
-// src/components/ui/header.tsx - Fixed with proper dashboard routing
+// src/components/ui/header.tsx - Updated with conditional dashboard and consistent colors
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useAccount, useDisconnect } from "wagmi";
@@ -48,6 +48,19 @@ const Header = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showUserMenu]);
 
+  // Get user menu button styling based on status
+  const getUserMenuButtonStyle = () => {
+    const baseClasses = "px-6 py-2 font-semibold flex items-center gap-2";
+    
+    if (databaseUser?.status === 'admin') {
+      // Admin gets red/crown styling
+      return `${baseClasses} border-red-500 text-red-500 hover:bg-red-500 hover:!text-black [&>svg]:hover:!text-black border-2`;
+    } else {
+      // All other statuses get primary green styling to match site colors
+      return `${baseClasses} border-primary text-primary hover:bg-primary hover:!text-black [&>svg]:hover:!text-black neon-glow border-2`;
+    }
+  };
+
   return (
     <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4 flex justify-center">
@@ -69,12 +82,15 @@ const Header = () => {
           <Link to="/trending" className="text-gray-light hover:text-foreground transition-colors">
             Trending
           </Link>
-          <button 
-            onClick={handleDashboardClick}
-            className="text-gray-light hover:text-foreground transition-colors"
-          >
-            Dashboard
-          </button>
+          {/* Only show Dashboard if user is signed in (not browser/no account) */}
+          {firebaseUser && (
+            <button 
+              onClick={handleDashboardClick}
+              className="text-gray-light hover:text-foreground transition-colors"
+            >
+              Dashboard
+            </button>
+          )}
           <Link to="/#about" className="text-gray-light hover:text-foreground transition-colors">
             About
           </Link>
@@ -161,18 +177,22 @@ const Header = () => {
               Loading...
             </Button>
           ) : firebaseUser ? (
-            // User is signed in - show user menu
+            // User is signed in - show user menu with status-based styling
             <div className="relative user-menu-container">
               <Button
                 variant="outline"
                 size="lg"
-                className="px-6 py-2 font-semibold border-primary text-primary hover:bg-primary hover:!text-black [&>svg]:hover:!text-black neon-glow flex items-center gap-2"
+                className={getUserMenuButtonStyle()}
                 onClick={() => setShowUserMenu(!showUserMenu)}
               >
                 <User className="w-4 h-4" />
                 {databaseUser?.display_name || firebaseUser.email?.split('@')[0] || 'User'}
                 {databaseUser?.status && (
-                  <span className="text-xs bg-primary/20 px-2 py-1 rounded-full ml-1">
+                  <span className={`text-xs px-2 py-1 rounded-full ml-1 ${
+                    databaseUser.status === 'admin' 
+                      ? 'bg-red-500/20 border border-red-500/30' 
+                      : 'bg-primary/20 border border-primary/30'
+                  }`}>
                     {databaseUser.status}
                   </span>
                 )}
@@ -188,7 +208,9 @@ const Header = () => {
                     <p className="text-xs text-gray-light">
                       {firebaseUser.email}
                     </p>
-                    <p className="text-xs text-blue-400 mt-1 capitalize">
+                    <p className={`text-xs mt-1 capitalize font-medium ${
+                      databaseUser?.status === 'admin' ? 'text-red-400' : 'text-primary'
+                    }`}>
                       Status: {databaseUser?.status || 'browser'}
                     </p>
                     {isConnected && (

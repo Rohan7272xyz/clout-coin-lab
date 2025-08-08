@@ -1,4 +1,4 @@
-// Backend/index.cjs - Updated with Firebase Admin initialization
+// Backend/index.cjs - Updated to include dashboard routes
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -26,6 +26,7 @@ const influencerRoutes = require('./routes/influencerRoutes');
 const testRoutes = require('./routes/testRoutes');
 const pledgeRoutes = require('./routes/pledgeRoutes');
 const userStatusRoutes = require('./routes/userStatusRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes'); // Add dashboard routes
 
 const app = express();
 const PORT = process.env.PORT || 3000; // Use port 3000 as default
@@ -43,8 +44,9 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/influencer', influencerRoutes);
 app.use('/api/test', testRoutes);
-app.use('/api/pledge', pledgeRoutes); // Add pledge routes
-app.use('/api/status', userStatusRoutes); // Add user status routes
+app.use('/api/pledge', pledgeRoutes);
+app.use('/api/status', userStatusRoutes);
+app.use('/api/dashboard', dashboardRoutes); // Add dashboard routes
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -54,7 +56,9 @@ app.get('/', (req, res) => {
       auth: '/api/auth',
       influencer: '/api/influencer',
       test: '/api/test',
-      pledge: '/api/pledge'
+      pledge: '/api/pledge',
+      status: '/api/status',
+      dashboard: '/api/dashboard'
     },
     status: 'operational',
     firebase: 'initialized'
@@ -94,4 +98,5 @@ app.listen(PORT, () => {
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 API endpoints available at http://localhost:${PORT}/api`);
   console.log(`🚀 Firebase Admin SDK status: initialized`);
+  console.log(`📈 Dashboard routes enabled at http://localhost:${PORT}/api/dashboard`);
 });

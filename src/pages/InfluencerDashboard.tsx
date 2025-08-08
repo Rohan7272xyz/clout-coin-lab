@@ -1,4 +1,4 @@
-// src/pages/InfluencerDashboard.tsx
+// src/pages/InfluencerDashboard.tsx - Updated with real database integration
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Header from "@/components/ui/header";
 import { useAuth } from "@/lib/auth/auth-context";
-import { useAccount, useReadContract } from "wagmi";
-import { formatEther } from "viem";
+import { useAccount } from "wagmi";
 import { 
   Coins, 
   Users, 
@@ -25,55 +24,12 @@ import {
   Settings,
   Download,
   Send,
-  Shield,
-  Clock,
-  Activity
+  Activity,
+  AlertCircle,
+  RefreshCw
 } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
-
-// Contract ABIs
-const INFLUENCER_TOKEN_ABI = [
-  {
-    "inputs": [{"internalType": "address","name": "account","type": "address"}],
-    "name": "balanceOf",
-    "outputs": [{"internalType": "uint256","name": "","type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "totalSupply",
-    "outputs": [{"internalType": "uint256","name": "","type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
-  }
-] as const;
-
-interface TokenStats {
-  balance: bigint;
-  totalSupply: bigint;
-  marketCap: number;
-  holders: number;
-  volume24h: number;
-  priceChange24h: number;
-  currentPrice: number;
-}
-
-interface Investor {
-  address: string;
-  amount: number;
-  value: number;
-  joinDate: string;
-  txHash: string;
-}
-
-interface ActivityItem {
-  type: 'buy' | 'sell' | 'transfer' | 'pledge';
-  user: string;
-  amount: string;
-  timestamp: string;
-  txHash: string;
-}
+import { useInfluencerDashboard } from '@/lib/dashboard/dashboardAPI';
 
 const InfluencerDashboard = () => {
   const navigate = useNavigate();
@@ -83,28 +39,16 @@ const InfluencerDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [giftForm, setGiftForm] = useState({ recipient: "", amount: "", message: "" });
-  const [investors, setInvestors] = useState<Investor[]>([]);
-  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
-  const [tokenStats, setTokenStats] = useState<TokenStats | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  // Mock token address - replace with actual from database
-  const tokenAddress = "0x742d35Cc6634C0532925a3b844dD90E8B73ac3E8" as `0x${string}`;
-
-  // Read token balance
-  const { data: balance } = useReadContract({
-    address: tokenAddress,
-    abi: INFLUENCER_TOKEN_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-  });
-
-  // Read total supply
-  const { data: totalSupply } = useReadContract({
-    address: tokenAddress,
-    abi: INFLUENCER_TOKEN_ABI,
-    functionName: 'totalSupply',
-  });
+  // Use the real database integration
+  const { 
+    stats, 
+    pledgers, 
+    loading, 
+    error, 
+    refreshData, 
+    giftTokens 
+  } = useInfluencerDashboard();
 
   useEffect(() => {
     // Check if user is influencer
@@ -113,68 +57,7 @@ const InfluencerDashboard = () => {
       navigate('/');
       return;
     }
-
-    loadDashboardData();
   }, [databaseUser]);
-
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true);
-      
-      // Mock data for now
-      setInvestors([
-        {
-          address: '0x123...abc',
-          amount: 50000,
-          value: 1250,
-          joinDate: '2024-01-15',
-          txHash: '0x123abc'
-        },
-        {
-          address: '0x456...def',
-          amount: 25000,
-          value: 625,
-          joinDate: '2024-01-20',
-          txHash: '0x456def'
-        }
-      ]);
-
-      setRecentActivity([
-        {
-          type: 'buy',
-          user: '0x789...ghi',
-          amount: '10,000 ROHINI',
-          timestamp: '2 hours ago',
-          txHash: '0x789ghi'
-        },
-        {
-          type: 'pledge',
-          user: '0x012...jkl',
-          amount: '0.5 ETH',
-          timestamp: '5 hours ago',
-          txHash: '0x012jkl'
-        }
-      ]);
-
-      // Calculate stats
-      const mockPrice = 0.0025;
-      setTokenStats({
-        balance: BigInt(300000),
-        totalSupply: BigInt(1000000),
-        marketCap: 2500000,
-        holders: 847,
-        volume24h: 89234,
-        priceChange24h: 12.4,
-        currentPrice: mockPrice
-      });
-
-    } catch (error) {
-      console.error("Error loading dashboard data:", error);
-      toast.error("Failed to load dashboard data");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleGiftTokens = async () => {
     if (!giftForm.recipient || !giftForm.amount) {
@@ -183,12 +66,13 @@ const InfluencerDashboard = () => {
     }
 
     try {
-      // TODO: Implement actual token transfer
+      await giftTokens(giftForm.recipient, parseFloat(giftForm.amount), giftForm.message);
       toast.success(`Successfully sent ${giftForm.amount} tokens to ${giftForm.recipient}`);
       setShowGiftModal(false);
       setGiftForm({ recipient: "", amount: "", message: "" });
     } catch (error) {
       toast.error("Failed to send tokens");
+      console.error("Gift tokens error:", error);
     }
   };
 
@@ -198,9 +82,15 @@ const InfluencerDashboard = () => {
   };
 
   const exportInvestors = () => {
-    const csv = investors.map(inv => 
-      `${inv.address},${inv.amount},${inv.value},${inv.joinDate}`
-    ).join('\n');
+    if (!stats?.investors) {
+      toast.error("No investor data to export");
+      return;
+    }
+
+    const csv = "Address,Display Name,Amount,Value,Join Date,ETH Invested\n" + 
+      stats.investors.map(inv => 
+        `${inv.address},${inv.displayName},${inv.amount},${inv.value},${inv.joinDate},${inv.ethInvested}`
+      ).join('\n');
     
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -208,8 +98,42 @@ const InfluencerDashboard = () => {
     a.href = url;
     a.download = 'investors.csv';
     a.click();
+    toast.success("Investor data exported successfully");
   };
 
+  const handleRefresh = async () => {
+    try {
+      await refreshData();
+      toast.success("Dashboard data refreshed");
+    } catch (error) {
+      toast.error("Failed to refresh data");
+    }
+  };
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black">
+        <Header />
+        <div className="flex items-center justify-center min-h-[calc(100vh-80px)] pt-20">
+          <Card className="bg-zinc-900 border-zinc-800 max-w-md">
+            <CardHeader className="text-center">
+              <CardTitle className="text-red-400">Error Loading Dashboard</CardTitle>
+              <CardDescription>{error}</CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Button onClick={handleRefresh} className="bg-primary hover:bg-primary/90 text-black">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Try Again
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-black">
@@ -219,6 +143,35 @@ const InfluencerDashboard = () => {
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-gray-400">Loading dashboard...</p>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // No token setup yet
+  if (!stats?.hasToken) {
+    return (
+      <div className="min-h-screen bg-black">
+        <Header />
+        <div className="flex items-center justify-center min-h-[calc(100vh-80px)] pt-20">
+          <Card className="bg-zinc-900 border-zinc-800 max-w-md">
+            <CardHeader className="text-center">
+              <AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+              <CardTitle className="text-yellow-400">Token Setup Required</CardTitle>
+              <CardDescription>
+                {stats?.message || "Your influencer token hasn't been set up yet. Contact an admin to configure your token parameters."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Button onClick={handleRefresh} className="bg-primary hover:bg-primary/90 text-black mb-4">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Check Again
+              </Button>
+              <p className="text-xs text-gray-500">
+                An admin needs to set up your pledge threshold and token details.
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -234,15 +187,39 @@ const InfluencerDashboard = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-gradient-to-r from-primary to-green-400 rounded-full flex items-center justify-center text-xl font-bold text-black">
-                {databaseUser?.display_name?.[0] || 'I'}
+                {databaseUser?.display_name?.[0] || stats?.influencerInfo?.name?.[0] || 'I'}
               </div>
               <div>
                 <h1 className="text-xl font-bold">Influencer Dashboard</h1>
-                <p className="text-sm text-gray-400">{databaseUser?.display_name} • {databaseUser?.email}</p>
+                <p className="text-sm text-gray-400">
+                  {stats?.influencerInfo?.name || databaseUser?.display_name} • {databaseUser?.email}
+                </p>
+                {stats?.influencerInfo && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge className={`text-xs ${
+                      stats.influencerInfo.isApproved ? 'bg-green-500/20 text-green-400' : 
+                      stats.influencerInfo.thresholdMet ? 'bg-yellow-500/20 text-yellow-400' : 
+                      'bg-gray-500/20 text-gray-400'
+                    }`}>
+                      {stats.influencerInfo.isApproved ? 'Approved' : 
+                       stats.influencerInfo.thresholdMet ? 'Threshold Met' : 
+                       'Collecting Pledges'}
+                    </Badge>
+                    {stats.influencerInfo.pledgeThreshold > 0 && (
+                      <span className="text-xs text-gray-400">
+                        {stats.influencerInfo.totalPledged.toFixed(2)} / {stats.influencerInfo.pledgeThreshold} ETH
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" className="border-zinc-700">
+              <Button onClick={handleRefresh} variant="outline" size="sm" className="border-zinc-700 hover:border-primary/50">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </Button>
+              <Button variant="outline" size="sm" className="border-zinc-700 hover:border-primary/50">
                 <BarChart3 className="w-4 h-4 mr-2" />
                 Analytics
               </Button>
@@ -256,31 +233,37 @@ const InfluencerDashboard = () => {
       </div>
 
       {/* Token Info Bar */}
-      <div className="bg-zinc-900/30 border-b border-zinc-800">
-        <div className="container mx-auto px-6 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Badge className="bg-primary/20 text-primary border-primary/30">ROHINI</Badge>
-              <span className="text-gray-400 text-sm font-mono">{tokenAddress}</span>
-              <button onClick={() => copyAddress(tokenAddress)} className="text-gray-400 hover:text-white">
-                <Copy className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex items-center gap-6 text-sm">
-              <span>Price: <span className="text-primary">${tokenStats?.currentPrice || '0.00'}</span></span>
-              <span>24h: <span className="text-green-400">+{tokenStats?.priceChange24h || 0}%</span></span>
-              <span>MCap: <span className="text-white">${((tokenStats?.marketCap || 0) / 1000000).toFixed(2)}M</span></span>
+      {stats.token && (
+        <div className="bg-zinc-900/30 border-b border-zinc-800">
+          <div className="container mx-auto px-6 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Badge className="bg-primary/20 text-primary border-primary/30">
+                  {stats.token.symbol}
+                </Badge>
+                <span className="text-gray-400 text-sm font-mono">{stats.token.address}</span>
+                <button onClick={() => copyAddress(stats.token.address)} className="text-gray-400 hover:text-white">
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex items-center gap-6 text-sm">
+                <span>Price: <span className="text-primary">${stats.token.currentPrice.toFixed(6)}</span></span>
+                <span>24h: <span className={stats.token.priceChange24h >= 0 ? 'text-green-400' : 'text-red-400'}>
+                  {stats.token.priceChange24h >= 0 ? '+' : ''}{stats.token.priceChange24h.toFixed(2)}%
+                </span></span>
+                <span>MCap: <span className="text-white">${(stats.token.marketCap / 1000000).toFixed(2)}M</span></span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content */}
       <div className="container mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-zinc-900/50 border border-zinc-800">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="investors">Investors</TabsTrigger>
+            <TabsTrigger value="investors">Investors ({stats?.stats?.totalInvestors || 0})</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
             <TabsTrigger value="rewards">Rewards</TabsTrigger>
           </TabsList>
@@ -296,7 +279,9 @@ const InfluencerDashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">{tokenStats ? Number(tokenStats.balance).toLocaleString() : '0'}</p>
+                  <p className="text-2xl font-bold">
+                    {stats.token?.myBalance ? Number(stats.token.myBalance).toLocaleString() : '0'}
+                  </p>
                   <p className="text-xs text-gray-500 mt-1">30% of total supply</p>
                 </CardContent>
               </Card>
@@ -310,9 +295,11 @@ const InfluencerDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-bold">
-                    ${tokenStats ? (Number(tokenStats.balance) * tokenStats.currentPrice).toLocaleString() : '0'}
+                    ${stats.token?.myShareValue ? stats.token.myShareValue.toLocaleString() : '0'}
                   </p>
-                  <p className="text-xs text-green-400 mt-1">+{tokenStats?.priceChange24h || 0}%</p>
+                  <p className="text-xs text-green-400 mt-1">
+                    {stats.token?.priceChange24h >= 0 ? '+' : ''}{stats.token?.priceChange24h?.toFixed(2) || 0}%
+                  </p>
                 </CardContent>
               </Card>
 
@@ -324,7 +311,7 @@ const InfluencerDashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">{tokenStats?.holders.toLocaleString() || '0'}</p>
+                  <p className="text-2xl font-bold">{stats.token?.holders?.toLocaleString() || '0'}</p>
                   <p className="text-xs text-gray-500 mt-1">Active investors</p>
                 </CardContent>
               </Card>
@@ -337,7 +324,7 @@ const InfluencerDashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">${tokenStats?.volume24h.toLocaleString() || '0'}</p>
+                  <p className="text-2xl font-bold">${stats.token?.volume24h?.toLocaleString() || '0'}</p>
                   <p className="text-xs text-gray-500 mt-1">Trading volume</p>
                 </CardContent>
               </Card>
@@ -354,6 +341,7 @@ const InfluencerDashboard = () => {
                   <Button 
                     onClick={() => setShowGiftModal(true)}
                     className="h-auto p-4 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 text-left justify-start"
+                    disabled={!stats.token?.myBalance || stats.token.myBalance === 0}
                   >
                     <div className="flex flex-col gap-2">
                       <Gift className="w-6 h-6 text-green-400" />
@@ -364,7 +352,10 @@ const InfluencerDashboard = () => {
                     </div>
                   </Button>
 
-                  <Button className="h-auto p-4 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-left justify-start">
+                  <Button 
+                    className="h-auto p-4 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-left justify-start"
+                    disabled={!stats.token?.myBalance || stats.token.myBalance === 0}
+                  >
                     <div className="flex flex-col gap-2">
                       <Flame className="w-6 h-6 text-orange-400" />
                       <div>
@@ -374,9 +365,9 @@ const InfluencerDashboard = () => {
                     </div>
                   </Button>
 
-                  <Button className="h-auto p-4 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-left justify-start">
+                  <Button className="h-auto p-4 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-left justify-start">
                     <div className="flex flex-col gap-2">
-                      <Bell className="w-6 h-6 text-purple-400" />
+                      <Bell className="w-6 h-6 text-primary" />
                       <div>
                         <p className="font-medium text-white">Announcement</p>
                         <p className="text-xs text-gray-400">Update holders</p>
@@ -393,27 +384,39 @@ const InfluencerDashboard = () => {
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Your Investors</CardTitle>
-                  <CardDescription>{investors.length} token holders</CardDescription>
+                  <CardDescription>
+                    {stats?.stats?.totalInvestors || 0} token holders • Total raised: {stats?.stats?.totalEthRaised?.toFixed(4) || '0'} ETH
+                  </CardDescription>
                 </div>
-                <Button onClick={exportInvestors} size="sm" variant="outline" className="border-zinc-700">
+                <Button onClick={exportInvestors} size="sm" variant="outline" className="border-zinc-700 hover:border-primary/50">
                   <Download className="w-4 h-4 mr-2" />
                   Export CSV
                 </Button>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {investors.map((investor, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 transition-colors">
-                      <div>
-                        <p className="font-medium">{investor.address}</p>
-                        <p className="text-sm text-gray-400">Joined {investor.joinDate}</p>
+                  {stats?.investors && stats.investors.length > 0 ? (
+                    stats.investors.map((investor, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 transition-colors">
+                        <div>
+                          <p className="font-medium">{investor.address}</p>
+                          <p className="text-sm text-gray-400">
+                            {investor.displayName} • Joined {new Date(investor.joinDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium">{investor.amount.toLocaleString()} ETH equivalent</p>
+                          <p className="text-sm text-green-400">${investor.value.toLocaleString()}</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium">{investor.amount.toLocaleString()} tokens</p>
-                        <p className="text-sm text-green-400">${investor.value.toLocaleString()}</p>
-                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-400">
+                      <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="mb-2">No investors yet</p>
+                      <p className="text-sm">Start promoting your token to attract investors!</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -427,21 +430,29 @@ const InfluencerDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {recentActivity.map((activity, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${
-                          activity.type === 'buy' ? 'bg-green-400' : 
-                          activity.type === 'sell' ? 'bg-red-400' : 'bg-blue-400'
-                        }`} />
-                        <div>
-                          <p className="font-medium">{activity.type.toUpperCase()}: {activity.amount}</p>
-                          <p className="text-sm text-gray-400">{activity.user}</p>
+                  {stats?.recentActivity && stats.recentActivity.length > 0 ? (
+                    stats.recentActivity.map((activity, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${
+                            activity.type === 'buy' ? 'bg-green-400' : 
+                            activity.type === 'sell' ? 'bg-red-400' : 'bg-primary'
+                          }`} />
+                          <div>
+                            <p className="font-medium">{activity.type.toUpperCase()}: {activity.amount}</p>
+                            <p className="text-sm text-gray-400">{activity.user}</p>
+                          </div>
                         </div>
+                        <span className="text-sm text-gray-500">{activity.timestamp}</span>
                       </div>
-                      <span className="text-sm text-gray-500">{activity.timestamp}</span>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-400">
+                      <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="mb-2">No recent activity</p>
+                      <p className="text-sm">Activity will appear here as users interact with your token</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -462,10 +473,10 @@ const InfluencerDashboard = () => {
                   </Button>
                 </div>
 
-                <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
                   <h3 className="font-medium mb-2">Staking Rewards</h3>
                   <p className="text-sm text-gray-400 mb-3">Enable staking to reward long-term holders</p>
-                  <Button className="bg-purple-500 hover:bg-purple-600">
+                  <Button className="bg-primary hover:bg-primary/90 text-black">
                     Configure Staking
                   </Button>
                 </div>
@@ -503,7 +514,7 @@ const InfluencerDashboard = () => {
                   className="bg-zinc-800 border-zinc-700"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Available: {tokenStats ? Number(tokenStats.balance).toLocaleString() : '0'} tokens
+                  Available: {stats.token?.myBalance ? Number(stats.token.myBalance).toLocaleString() : '0'} tokens
                 </p>
               </div>
               <div>
