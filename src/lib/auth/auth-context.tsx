@@ -13,6 +13,7 @@ interface DatabaseUser {
   created_at: string;
   total_invested: number;
   portfolio_value: number;
+  status?: 'browser' | 'investor' | 'influencer' | 'admin';
 }
 
 interface AuthContextType {
