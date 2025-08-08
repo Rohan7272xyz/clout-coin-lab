@@ -1,4 +1,4 @@
-// src/App.tsx - Updated with all dashboard routes
+// src/App.tsx - Updated with proper dashboard routing
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +9,7 @@ import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { config } from "./wagmiConfig";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import ScrollToTop from "@/components/ScrollToTop";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 // Pages
 import Index from "./pages/Index";
@@ -26,54 +27,7 @@ import InfluencerDashboard from "./pages/InfluencerDashboard";
 import InvestorDashboard from "./pages/InvestorDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 
-// Protected Route Component
-import { useAuth } from "@/lib/auth/auth-context";
-import { ReactNode } from "react";
-
 const queryClient = new QueryClient();
-
-// Protected Route wrapper component
-const ProtectedRoute = ({ 
-  children, 
-  requiredStatus 
-}: { 
-  children: ReactNode; 
-  requiredStatus?: 'investor' | 'influencer' | 'admin';
-}) => {
-  const { databaseUser, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!databaseUser) {
-    return <Navigate to="/signin" replace />;
-  }
-
-  // Check status hierarchy
-  const statusHierarchy = {
-    'browser': 1,
-    'investor': 2,
-    'influencer': 3,
-    'admin': 4
-  };
-
-  const userLevel = statusHierarchy[databaseUser.status as keyof typeof statusHierarchy] || 0;
-  const requiredLevel = requiredStatus ? statusHierarchy[requiredStatus] : 1;
-
-  if (userLevel < requiredLevel) {
-    return <Navigate to="/" replace />;
-  }
-
-  return <>{children}</>;
-};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -104,11 +58,11 @@ const App = () => (
                   } 
                 />
                 
-                {/* Specific Dashboard Routes */}
+                {/* Specific Dashboard Routes with proper protection */}
                 <Route 
                   path="/dashboard/investor" 
                   element={
-                    <ProtectedRoute requiredStatus="investor">
+                    <ProtectedRoute requiredStatus="investor" showUpgrade={true}>
                       <InvestorDashboard />
                     </ProtectedRoute>
                   } 
@@ -117,7 +71,7 @@ const App = () => (
                 <Route 
                   path="/dashboard/influencer" 
                   element={
-                    <ProtectedRoute requiredStatus="influencer">
+                    <ProtectedRoute requiredStatus="influencer" showUpgrade={true}>
                       <InfluencerDashboard />
                     </ProtectedRoute>
                   } 
@@ -126,7 +80,7 @@ const App = () => (
                 <Route 
                   path="/dashboard/admin" 
                   element={
-                    <ProtectedRoute requiredStatus="admin">
+                    <ProtectedRoute requiredStatus="admin" showUpgrade={true}>
                       <AdminDashboard />
                     </ProtectedRoute>
                   } 
@@ -136,7 +90,7 @@ const App = () => (
                 <Route 
                   path="/admin/token-factory" 
                   element={
-                    <ProtectedRoute requiredStatus="admin">
+                    <ProtectedRoute requiredStatus="admin" showUpgrade={true}>
                       <TokenFactory />
                     </ProtectedRoute>
                   } 

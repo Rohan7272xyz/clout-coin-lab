@@ -121,35 +121,53 @@ const InfluencerDashboard = () => {
     try {
       setLoading(true);
       
-      // Load investors from API
-      const investorsResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/trading/investors/${tokenAddress}`);
-      if (investorsResponse.ok) {
-        const data = await investorsResponse.json();
-        setInvestors(data);
-      }
+      // Mock data for now
+      setInvestors([
+        {
+          address: '0x123...abc',
+          amount: 50000,
+          value: 1250,
+          joinDate: '2024-01-15',
+          txHash: '0x123abc'
+        },
+        {
+          address: '0x456...def',
+          amount: 25000,
+          value: 625,
+          joinDate: '2024-01-20',
+          txHash: '0x456def'
+        }
+      ]);
 
-      // Load activity
-      const activityResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/trading/activity/${tokenAddress}`);
-      if (activityResponse.ok) {
-        const data = await activityResponse.json();
-        setRecentActivity(data);
-      }
+      setRecentActivity([
+        {
+          type: 'buy',
+          user: '0x789...ghi',
+          amount: '10,000 ROHINI',
+          timestamp: '2 hours ago',
+          txHash: '0x789ghi'
+        },
+        {
+          type: 'pledge',
+          user: '0x012...jkl',
+          amount: '0.5 ETH',
+          timestamp: '5 hours ago',
+          txHash: '0x012jkl'
+        }
+      ]);
 
       // Calculate stats
-      if (balance && totalSupply) {
-        const mySharePercentage = (Number(balance) / Number(totalSupply)) * 100;
-        const mockPrice = 0.0024; // Replace with actual price feed
-        
-        setTokenStats({
-          balance: balance,
-          totalSupply: totalSupply,
-          marketCap: Number(formatEther(totalSupply)) * mockPrice,
-          holders: investors.length || 1847,
-          volume24h: 89234,
-          priceChange24h: 12.4,
-          currentPrice: mockPrice
-        });
-      }
+      const mockPrice = 0.0025;
+      setTokenStats({
+        balance: BigInt(300000),
+        totalSupply: BigInt(1000000),
+        marketCap: 2500000,
+        holders: 847,
+        volume24h: 89234,
+        priceChange24h: 12.4,
+        currentPrice: mockPrice
+      });
+
     } catch (error) {
       console.error("Error loading dashboard data:", error);
       toast.error("Failed to load dashboard data");
@@ -194,10 +212,13 @@ const InfluencerDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading dashboard...</p>
+      <div className="min-h-screen bg-black">
+        <Header />
+        <div className="flex items-center justify-center min-h-[calc(100vh-80px)] pt-20">
+          <div className="text-center">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading dashboard...</p>
+          </div>
         </div>
       </div>
     );
@@ -208,7 +229,7 @@ const InfluencerDashboard = () => {
       <Header />
       
       {/* Dashboard Header */}
-      <div className="bg-zinc-900/50 border-b border-zinc-800">
+      <div className="bg-zinc-900/50 border-b border-zinc-800 pt-16">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -239,7 +260,7 @@ const InfluencerDashboard = () => {
         <div className="container mx-auto px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Badge className="bg-primary/20 text-primary border-primary/30">ROHAN</Badge>
+              <Badge className="bg-primary/20 text-primary border-primary/30">ROHINI</Badge>
               <span className="text-gray-400 text-sm font-mono">{tokenAddress}</span>
               <button onClick={() => copyAddress(tokenAddress)} className="text-gray-400 hover:text-white">
                 <Copy className="w-4 h-4" />
@@ -275,7 +296,7 @@ const InfluencerDashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">{balance ? Number(formatEther(balance)).toLocaleString() : '0'}</p>
+                  <p className="text-2xl font-bold">{tokenStats ? Number(tokenStats.balance).toLocaleString() : '0'}</p>
                   <p className="text-xs text-gray-500 mt-1">30% of total supply</p>
                 </CardContent>
               </Card>
@@ -289,7 +310,7 @@ const InfluencerDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-bold">
-                    ${balance && tokenStats ? (Number(formatEther(balance)) * tokenStats.currentPrice).toLocaleString() : '0'}
+                    ${tokenStats ? (Number(tokenStats.balance) * tokenStats.currentPrice).toLocaleString() : '0'}
                   </p>
                   <p className="text-xs text-green-400 mt-1">+{tokenStats?.priceChange24h || 0}%</p>
                 </CardContent>
@@ -482,7 +503,7 @@ const InfluencerDashboard = () => {
                   className="bg-zinc-800 border-zinc-700"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Available: {balance ? Number(formatEther(balance)).toLocaleString() : '0'} tokens
+                  Available: {tokenStats ? Number(tokenStats.balance).toLocaleString() : '0'} tokens
                 </p>
               </div>
               <div>

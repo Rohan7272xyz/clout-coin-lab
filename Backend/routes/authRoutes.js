@@ -1,5 +1,5 @@
 // Backend/routes/authRoutes.js
-// Missing auth routes that your frontend expects
+// Updated with better error handling and debugging
 
 const express = require('express');
 const router = express.Router();
@@ -15,12 +15,24 @@ const verifyToken = async (req, res, next) => {
 
   const idToken = authHeader.split('Bearer ')[1];
   try {
+    console.log('🔍 Verifying token for project:', admin.app().options.projectId);
+    
     const decodedToken = await admin.auth().verifyIdToken(idToken);
+    console.log('✅ Token verified successfully for user:', decodedToken.email);
+    
     req.user = decodedToken;
     next();
   } catch (error) {
-    console.error('Token verification failed:', error);
-    return res.status(403).json({ error: 'Invalid token' });
+    console.error('❌ Token verification failed:', error);
+    console.error('Token details:', {
+      tokenLength: idToken.length,
+      tokenStart: idToken.substring(0, 20),
+      expectedProject: admin.app().options.projectId
+    });
+    return res.status(403).json({ 
+      error: 'Invalid token',
+      details: error.message 
+    });
   }
 };
 
@@ -30,6 +42,8 @@ router.post('/sync', verifyToken, async (req, res) => {
     const { wallet_address, email, display_name, profile_picture_url } = req.body;
     const firebaseUid = req.user.uid;
     const userEmail = email || req.user.email;
+
+    console.log('🔄 Syncing user:', { firebaseUid, userEmail, wallet_address });
 
     // Check if user exists
     const existingUser = await db.query(
@@ -47,12 +61,14 @@ router.post('/sync', verifyToken, async (req, res) => {
           email = $2,
           display_name = COALESCE($3, display_name),
           profile_picture_url = COALESCE($4, profile_picture_url),
+          firebase_uid = $5,
           updated_at = CURRENT_TIMESTAMP
-        WHERE firebase_uid = $5
+        WHERE email = $2 OR firebase_uid = $5
         RETURNING *
       `, [wallet_address, userEmail, display_name, profile_picture_url, firebaseUid]);
       
       user = updateResult.rows[0];
+      console.log('✅ Updated existing user:', user.email, 'Status:', user.status);
     } else {
       // Create new user
       const insertResult = await db.query(`
@@ -69,6 +85,7 @@ router.post('/sync', verifyToken, async (req, res) => {
       `, [firebaseUid, wallet_address, userEmail, display_name, profile_picture_url]);
       
       user = insertResult.rows[0];
+      console.log('✅ Created new user:', user.email, 'Status:', user.status);
     }
 
     res.json({
@@ -85,7 +102,7 @@ router.post('/sync', verifyToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error syncing user:', error);
+    console.error('❌ Error syncing user:', error);
     res.status(500).json({ error: 'Failed to sync user' });
   }
 });
@@ -94,6 +111,8 @@ router.post('/sync', verifyToken, async (req, res) => {
 router.get('/user/:uid', verifyToken, async (req, res) => {
   try {
     const { uid } = req.params;
+    
+    console.log('🔍 Fetching user by UID:', uid);
     
     // Ensure user can only access their own data (or admin can access any)
     if (req.user.uid !== uid) {
@@ -106,10 +125,13 @@ router.get('/user/:uid', verifyToken, async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      console.log('❌ User not found in database for UID:', uid);
       return res.status(404).json({ error: 'User not found' });
     }
 
     const user = result.rows[0];
+    console.log('✅ Found user:', user.email, 'Status:', user.status);
+    
     res.json({
       id: user.id,
       wallet_address: user.wallet_address,
@@ -123,7 +145,7 @@ router.get('/user/:uid', verifyToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching user:', error);
+    console.error('❌ Error fetching user:', error);
     res.status(500).json({ error: 'Failed to fetch user' });
   }
 });
@@ -169,7 +191,7 @@ router.put('/user/:uid', verifyToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error updating user:', error);
+    console.error('❌ Error updating user:', error);
     res.status(500).json({ error: 'Failed to update user' });
   }
 });
@@ -179,8 +201,8 @@ router.post('/upgrade-status', verifyToken, async (req, res) => {
   try {
     // Check if requester is admin
     const requesterResult = await db.query(
-      'SELECT status FROM users WHERE firebase_uid = $1',
-      [req.user.uid]
+      'SELECT status FROM users WHERE firebase_uid = $1 OR email = $2',
+      [req.user.uid, req.user.email]
     );
 
     if (requesterResult.rows.length === 0 || requesterResult.rows[0].status !== 'admin') {
@@ -215,7 +237,7 @@ router.post('/upgrade-status', verifyToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error upgrading user status:', error);
+    console.error('❌ Error upgrading user status:', error);
     res.status(500).json({ error: 'Failed to upgrade user status' });
   }
 });

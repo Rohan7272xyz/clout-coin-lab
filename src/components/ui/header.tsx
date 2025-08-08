@@ -1,206 +1,221 @@
-// src/components/ui/header.tsx - Updated to use both wallet and auth states
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAuth } from "@/lib/auth/auth-context";
-import { useAccount, useDisconnect } from "wagmi";
-import { Link } from "react-router-dom";
+// src/components/ui/header.tsx
+// Updated Header component with conditional Dashboard link based on user status
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Zap, User, LogOut } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Menu, X, Home, TrendingUp, Users, MessageCircle, BarChart3 } from "lucide-react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "@/lib/auth/auth-context";
 
 const Header = () => {
-  const { firebaseUser, databaseUser, loading, signOut } = useAuth();
-  const { isConnected, address } = useAccount();
-  const { disconnect } = useDisconnect();
-  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { firebaseUser, databaseUser, signOut } = useAuth();
+
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
   const handleSignOut = async () => {
     try {
       await signOut();
-      disconnect(); // Also disconnect wallet
-      setShowUserMenu(false);
+      navigate('/');
     } catch (error) {
-      console.error("Error signing out:", error);
+      console.error('Sign out error:', error);
     }
   };
 
-  // Auto-close user menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      if (showUserMenu && !target.closest('.user-menu-container')) {
-        setShowUserMenu(false);
-      }
-    };
+  // Determine if user should see Dashboard link
+  // Only show Dashboard for users with investor status or higher (not browser users)
+  const shouldShowDashboard = databaseUser && 
+    databaseUser.status && 
+    ['investor', 'influencer', 'admin'].includes(databaseUser.status);
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showUserMenu]);
+  // Determine if user should see admin-only features
+  const shouldShowAdminFeatures = databaseUser?.status === 'admin';
+
+  const navigation = [
+    { name: "Home", href: "/", icon: Home },
+    { name: "Trending", href: "/trending", icon: TrendingUp },
+    { name: "Influencers", href: "/influencers", icon: Users },
+    { name: "Pre-Invest", href: "/pre-invest", icon: MessageCircle },
+    // Conditionally include Dashboard link
+    ...(shouldShowDashboard ? [
+      { name: "Dashboard", href: "/dashboard", icon: BarChart3 }
+    ] : []),
+    // Conditionally include Admin features
+    ...(shouldShowAdminFeatures ? [
+      { name: "Token Factory", href: "/admin/token-factory", icon: BarChart3 }
+    ] : [])
+  ];
 
   return (
-    <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-4 flex justify-center">
-        <div className="flex items-center gap-x-14 mx-auto">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-md border-b border-gray-800">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          {/* Logo */}
+          <div 
+            className="flex items-center space-x-2 cursor-pointer"
+            onClick={() => navigate('/')}
+          >
+            <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-lg">C</span>
+            </div>
+            <span className="text-xl font-bold text-white">CoinFluence</span>
+          </div>
 
-        <Link to="/" className="flex items-center group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 h-12">
-          <img
-            src="/20250805_1007_Modern Coinfluence Logo_simple_compose_01k1x8x0hheaaraepnewcd4d46.png"
-            alt="CoinFluence Logo"
-            className="w-16 h-16 object-contain drop-shadow-md"
-            style={{ 
-              imageRendering: 'crisp-edges',
-            }}
-          />
-          <span className="text-xl font-bold group-hover:underline">CoinFluence</span>
-        </Link>
-        
-        <nav className="hidden md:flex items-center space-x-12">
-          <Link to="/trending" className="text-gray-light hover:text-foreground transition-colors">
-            Trending
-          </Link>
-          <Link to="/dashboard" className="text-gray-light hover:text-foreground transition-colors">
-            Dashboard
-          </Link>
-          <Link to="/#about" className="text-gray-light hover:text-foreground transition-colors">
-            About
-          </Link>
-        </nav>
-        
-        <div className="flex items-center gap-6">
-          {/* RainbowKit Connect Button - Always show this for wallet connection */}
-          <ConnectButton.Custom>
-            {({ 
-              account, 
-              chain, 
-              openAccountModal, 
-              openChainModal, 
-              openConnectModal, 
-              authenticationStatus, 
-              mounted 
-            }) => {
-              // Make sure the component is mounted and ready
-              const ready = mounted && authenticationStatus !== 'loading';
-              const connected = ready && account && chain && (!authenticationStatus || authenticationStatus === 'authenticated');
-
-              return (
-                <div
-                  {...(!ready && {
-                    'aria-hidden': true,
-                    'style': {
-                      opacity: 0,
-                      pointerEvents: 'none',
-                      userSelect: 'none',
-                    },
-                  })}
-                >
-                  {(() => {
-                    if (!connected) {
-                      return (
-                        <Button
-                          variant="wallet"
-                          size="lg"
-                          className="px-6 py-2 font-semibold hover:!text-black [&>svg]:hover:!text-black"
-                          onClick={openConnectModal}
-                          type="button"
-                        >
-                          <Zap className="w-4 h-4 mr-2" />
-                          Connect Wallet
-                        </Button>
-                      );
-                    }
-
-                    if (chain.unsupported) {
-                      return (
-                        <Button
-                          variant="destructive"
-                          size="lg"
-                          className="px-6 py-2 font-semibold"
-                          onClick={openChainModal}
-                          type="button"
-                        >
-                          Wrong network
-                        </Button>
-                      );
-                    }
-
-                    return (
-                      <Button
-                        variant="wallet"
-                        size="lg"
-                        className="px-6 py-2 font-semibold hover:!text-black [&>svg]:hover:!text-black"
-                        onClick={openAccountModal}
-                        type="button"
-                      >
-                        <Zap className="w-4 h-4 mr-2" />
-                        Wallet Connected
-                      </Button>
-                    );
-                  })()}
-                </div>
-              );
-            }}
-          </ConnectButton.Custom>
-          
-          {/* Authentication Section - Show user info if signed in */}
-          {loading ? (
-            <Button variant="outline" size="lg" className="px-6 py-2 font-semibold" disabled>
-              Loading...
-            </Button>
-          ) : firebaseUser ? (
-            // User is signed in - show user menu
-            <div className="relative user-menu-container">
-              <Button
-                variant="outline"
-                size="lg"
-                className="px-6 py-2 font-semibold border-primary text-primary hover:bg-primary hover:!text-black [&>svg]:hover:!text-black neon-glow flex items-center gap-2"
-                onClick={() => setShowUserMenu(!showUserMenu)}
-              >
-                <User className="w-4 h-4" />
-                {databaseUser?.display_name || firebaseUser.email?.split('@')[0] || 'User'}
-              </Button>
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center space-x-8">
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.href;
               
-              {/* Dropdown Menu */}
-              {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-background border border-border rounded-lg shadow-lg z-50">
-                  <div className="p-3 border-b border-border">
-                    <p className="text-sm font-medium text-foreground">
-                      {databaseUser?.display_name || 'User'}
-                    </p>
-                    <p className="text-xs text-gray-light">
-                      {firebaseUser.email}
-                    </p>
-                    {isConnected && (
-                      <p className="text-xs text-primary mt-1">
-                        Wallet: {address?.slice(0, 6)}...{address?.slice(-4)}
-                      </p>
-                    )}
+              return (
+                <button
+                  key={item.name}
+                  onClick={() => navigate(item.href)}
+                  className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    isActive
+                      ? "text-primary bg-primary/10"
+                      : "text-gray-300 hover:text-white hover:bg-gray-800"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.name}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Right Side - Auth & Wallet */}
+          <div className="hidden md:flex items-center space-x-4">
+            {firebaseUser ? (
+              <div className="flex items-center space-x-3">
+                {/* User Status Badge */}
+                {databaseUser?.status && (
+                  <div className="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-300 border border-gray-700">
+                    {databaseUser.status === 'admin' && '👑 Admin'}
+                    {databaseUser.status === 'influencer' && '🌟 Influencer'}
+                    {databaseUser.status === 'investor' && '💰 Investor'}
+                    {databaseUser.status === 'browser' && '👀 Browser'}
                   </div>
-                  <div className="p-1">
+                )}
+                
+                {/* User Info */}
+                <div className="text-right">
+                  <div className="text-sm font-medium text-white">
+                    {databaseUser?.display_name || firebaseUser.email}
+                  </div>
+                  {databaseUser?.status !== 'browser' && (
+                    <div className="text-xs text-gray-400">
+                      {databaseUser?.email}
+                    </div>
+                  )}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSignOut}
+                  className="border-gray-600 text-gray-300 hover:bg-gray-800"
+                >
+                  Sign Out
+                </Button>
+              </div>
+            ) : (
+              <Button
+                onClick={() => navigate('/signin')}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                Sign In
+              </Button>
+            )}
+            
+            <ConnectButton />
+          </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={toggleMenu}
+            className="md:hidden p-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-800"
+          >
+            {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
+
+        {/* Mobile Navigation */}
+        {isMenuOpen && (
+          <div className="md:hidden border-t border-gray-800 py-4">
+            <div className="flex flex-col space-y-2">
+              {navigation.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.href;
+                
+                return (
+                  <button
+                    key={item.name}
+                    onClick={() => {
+                      navigate(item.href);
+                      setIsMenuOpen(false);
+                    }}
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-md text-left transition-colors ${
+                      isActive
+                        ? "text-primary bg-primary/10"
+                        : "text-gray-300 hover:text-white hover:bg-gray-800"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{item.name}</span>
+                  </button>
+                );
+              })}
+              
+              {/* Mobile Auth Section */}
+              <div className="pt-4 border-t border-gray-800">
+                {firebaseUser ? (
+                  <div className="space-y-3">
+                    {/* User Status Badge */}
+                    {databaseUser?.status && (
+                      <div className="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-300 border border-gray-700 w-fit">
+                        {databaseUser.status === 'admin' && '👑 Admin'}
+                        {databaseUser.status === 'influencer' && '🌟 Influencer'}
+                        {databaseUser.status === 'investor' && '💰 Investor'}
+                        {databaseUser.status === 'browser' && '👀 Browser'}
+                      </div>
+                    )}
+                    
+                    <div className="text-sm text-white">
+                      {databaseUser?.display_name || firebaseUser.email}
+                    </div>
+                    
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="w-full justify-start text-left hover:bg-red-500/10 hover:text-red-500"
                       onClick={handleSignOut}
+                      className="w-full border-gray-600 text-gray-300 hover:bg-gray-800"
                     >
-                      <LogOut className="w-4 h-4 mr-2" />
                       Sign Out
                     </Button>
                   </div>
+                ) : (
+                  <Button
+                    onClick={() => {
+                      navigate('/signin');
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                  >
+                    Sign In
+                  </Button>
+                )}
+                
+                <div className="mt-3">
+                  <ConnectButton />
                 </div>
-              )}
+              </div>
             </div>
-          ) : (
-            // User is not signed in - show sign in button
-            <Button
-              variant="outline"
-              size="lg"
-              className="px-6 py-2 font-semibold border-primary text-primary hover:bg-primary hover:!text-black neon-glow"
-              asChild
-            >
-              <Link to="/signin">Sign In</Link>
-            </Button>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
       </div>
     </header>
   );
