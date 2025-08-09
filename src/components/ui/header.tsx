@@ -1,4 +1,5 @@
 // src/components/ui/header.tsx - Fixed structure
+// Navbar updated: Added Influencers and About links
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useAccount, useDisconnect } from "wagmi";
@@ -48,6 +49,12 @@ const Header = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showUserMenu]);
 
+  // Add Influencers and About to the main nav
+  const navLinks = [
+    { name: 'Influencers', to: '/influencers' },
+    { name: 'About', to: '/about' },
+  ];
+
   // Get user menu button styling based on status
   const getUserMenuButtonStyle = () => {
     const baseClasses = "px-4 py-2 font-semibold flex items-center gap-2";
@@ -65,7 +72,6 @@ const Header = () => {
     <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-center gap-12 max-w-6xl mx-auto">
-          
           {/* Logo */}
           <Link to="/" className="flex items-center group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 h-12">
             <img
@@ -78,6 +84,19 @@ const Header = () => {
             />
             <span className="text-xl font-bold group-hover:underline">CoinFluence</span>
           </Link>
+
+          {/* Nav Links */}
+          <nav className="flex items-center gap-6">
+            {navLinks.map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="text-lg font-semibold text-gray-200 hover:text-primary transition-colors px-2 py-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+              >
+                {link.name}
+              </Link>
+            ))}
+          </nav>
           
           {/* Buttons Container */}
           <div className="flex items-center gap-6">

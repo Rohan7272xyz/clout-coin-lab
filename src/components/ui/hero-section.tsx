@@ -118,21 +118,6 @@ const HeroSection = () => {
               }}
             </ConnectButton.Custom>
           </div>
-          
-          <div className="mt-12 flex justify-center items-center space-x-8 text-sm text-gray-muted">
-            <div className="flex items-center">
-              <div className="w-2 h-2 bg-primary rounded-full mr-2"></div>
-              <span>$0 Invested</span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-2 h-2 bg-primary rounded-full mr-2"></div>
-              <span>0 Influencers</span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-2 h-2 bg-primary rounded-full mr-2"></div>
-              <span>0 Investors</span>
-            </div>
-          </div>
         </div>
       </div>
     </section>

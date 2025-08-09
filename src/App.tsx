@@ -20,6 +20,7 @@ import PreInvest from "./pages/PreInvest";
 import Influencers from "./pages/Influencers";
 import CoinDetail from "./pages/CoinDetail";
 import TokenFactory from "./pages/TokenFactory";
+import About from "./pages/About";
 
 // Dashboard pages
 import Dashboard from "./pages/Dashboard";
@@ -96,6 +97,9 @@ const App = () => (
                   } 
                 />
                 
+                {/* About Page route */}
+                <Route path="/about" element={<About />} />
+
                 {/* Catch-all route must be last */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
