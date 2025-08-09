@@ -519,4 +519,149 @@ router.get('/stats/overview', async (req, res) => {
   }
 });
 
+// Backend/routes/influencerRoutes.js - Add these routes for coin details
+
+// GET /api/influencer/coin/:identifier - Get coin details by name, symbol, or ID
+router.get('/coin/:identifier', async (req, res) => {
+  try {
+    const { identifier } = req.params;
+    console.log('🪙 Fetching coin details for:', identifier);
+    
+    let query;
+    let params;
+    
+    // Check if identifier is a number (ID) or string (name/symbol)
+    if (!isNaN(parseInt(identifier))) {
+      // Search by ID
+      query = 'SELECT * FROM influencers_display WHERE id = $1';
+      params = [parseInt(identifier)];
+    } else {
+      // Search by name, handle, or symbol (case insensitive)
+      query = `
+        SELECT * FROM influencers_display 
+        WHERE LOWER(name) = LOWER($1) 
+           OR LOWER(handle) = LOWER($2)
+           OR LOWER(token_symbol) = LOWER($1)
+           OR LOWER(REPLACE(name, ' ', '')) = LOWER($1)
+      `;
+      params = [identifier, `@${identifier.toLowerCase()}`];
+    }
+    
+    const result = await db.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Coin not found',
+        identifier: identifier
+      });
+    }
+    
+    const influencer = result.rows[0];
+    
+    // Transform for trading interface
+    const coinData = {
+      id: influencer.id,
+      name: influencer.name,
+      handle: influencer.handle || `@${influencer.name.toLowerCase().replace(/\s+/g, '')}`,
+      tokenName: influencer.token_name || `${influencer.name} Token`,
+      symbol: influencer.token_symbol || influencer.name.substring(0, 5).toUpperCase().replace(/\s/g, ''),
+      avatar: influencer.avatar_url,
+      category: influencer.category,
+      description: influencer.description,
+      followers: influencer.followers_count ? formatFollowers(influencer.followers_count) : null,
+      verified: influencer.verified || false,
+      
+      // Trading data
+      currentPrice: influencer.current_price || 0.0018,
+      priceChange24h: influencer.price_change_24h || 12.4,
+      marketCap: influencer.market_cap || 1800000,
+      volume24h: influencer.volume_24h || 89234,
+      totalSupply: influencer.token_total_supply || 1000000,
+      circulatingSupply: Math.floor((influencer.token_total_supply || 1000000) * 0.7), // 70% circulating
+      
+      // Contract info
+      contractAddress: influencer.token_address || "0x9c742435Cc6634C0532925a3b8D6Ac9C43F533e3E",
+      poolAddress: influencer.liquidity_pool_address,
+      liquidityLocked: true,
+      lockUntil: "2025-12-31",
+      
+      // Status
+      isLive: influencer.is_live || influencer.status === 'live' || !!influencer.launched_at,
+      etherscanVerified: true,
+      launchedAt: influencer.launched_at
+    };
+    
+    console.log('✅ Coin details found:', coinData.name, '- Live:', coinData.isLive);
+    
+    res.json({
+      success: true,
+      data: coinData
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching coin details:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch coin details',
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/influencer/search/:query - Search for influencers/coins
+router.get('/search/:query', async (req, res) => {
+  try {
+    const { query } = req.params;
+    console.log('🔍 Searching for:', query);
+    
+    const result = await db.query(`
+      SELECT id, name, handle, token_name, token_symbol, avatar_url, status, is_live
+      FROM influencers 
+      WHERE 
+        LOWER(name) LIKE LOWER($1) 
+        OR LOWER(handle) LIKE LOWER($1)
+        OR LOWER(token_name) LIKE LOWER($1)
+        OR LOWER(token_symbol) LIKE LOWER($1)
+      ORDER BY 
+        CASE WHEN status = 'live' THEN 1 ELSE 2 END,
+        name ASC
+      LIMIT 10
+    `, [`%${query}%`]);
+    
+    const results = result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      handle: row.handle,
+      tokenName: row.token_name,
+      symbol: row.token_symbol,
+      avatar: row.avatar_url,
+      isLive: row.is_live || row.status === 'live'
+    }));
+    
+    res.json({
+      success: true,
+      data: results
+    });
+    
+  } catch (error) {
+    console.error('❌ Error searching:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Search failed',
+      details: error.message 
+    });
+  }
+});
+
+// Helper function to format followers (if not already defined)
+function formatFollowers(count) {
+  if (count >= 1000000) {
+    return (count / 1000000).toFixed(1) + 'M';
+  } else if (count >= 1000) {
+    return (count / 1000).toFixed(1) + 'K';
+  }
+  return count.toString();
+}
+
 module.exports = router;

@@ -610,4 +610,199 @@ router.use((error, req, res, next) => {
 
 console.log('✅ Fixed pledgeRoutes.js loaded successfully');
 
+
+// Backend/routes/pledgeRoutes.js - Updated GET /api/pledge/influencers endpoint
+// Add this to your existing pledgeRoutes.js file
+
+// GET /api/pledge/influencers - Get all influencers with pledge data (FIXED VERSION)
+router.get('/influencers', async (req, res) => {
+  try {
+    console.log('📊 Fetching influencers with pledge data...');
+    
+    const result = await db.query(`
+      SELECT 
+        i.id,
+        i.name,
+        i.handle,
+        i.wallet_address,
+        i.email,
+        i.followers_count,
+        i.category,
+        i.description,
+        i.avatar_url,
+        i.verified,
+        i.status,
+        i.token_name,
+        i.token_symbol,
+        i.token_address,
+        i.current_price,
+        i.market_cap,
+        i.volume_24h,
+        i.price_change_24h,
+        i.launched_at,
+        i.created_at,
+        -- Pledge specific fields
+        COALESCE(i.pledge_threshold_eth, 0) as pledge_threshold_eth,
+        COALESCE(i.pledge_threshold_usdc, 0) as pledge_threshold_usdc,
+        COALESCE(i.total_pledged_eth, 0) as total_pledged_eth,
+        COALESCE(i.total_pledged_usdc, 0) as total_pledged_usdc,
+        COALESCE(i.pledge_count, 0) as pledge_count,
+        COALESCE(i.is_approved, false) as is_approved,
+        i.approved_at,
+        -- Calculate if threshold is met
+        CASE 
+          WHEN (i.pledge_threshold_eth > 0 AND COALESCE(i.total_pledged_eth, 0) >= i.pledge_threshold_eth) OR
+               (i.pledge_threshold_usdc > 0 AND COALESCE(i.total_pledged_usdc, 0) >= i.pledge_threshold_usdc)
+          THEN true 
+          ELSE false 
+        END as threshold_met
+      FROM influencers i
+      WHERE 
+        -- Include influencers that have pledge thresholds set OR are already live
+        (i.pledge_threshold_eth > 0 OR i.pledge_threshold_usdc > 0 OR i.status = 'live' OR i.launched_at IS NOT NULL)
+        AND i.status != 'rejected'
+      ORDER BY 
+        -- Order by status priority: live first, then by pledge progress
+        CASE 
+          WHEN i.status = 'live' OR i.launched_at IS NOT NULL THEN 1 
+          WHEN i.is_approved = true THEN 2
+          WHEN (i.pledge_threshold_eth > 0 AND COALESCE(i.total_pledged_eth, 0) >= i.pledge_threshold_eth) OR
+               (i.pledge_threshold_usdc > 0 AND COALESCE(i.total_pledged_usdc, 0) >= i.pledge_threshold_usdc) THEN 3
+          ELSE 4 
+        END,
+        i.created_at DESC
+    `);
+
+    const influencers = result.rows.map(row => {
+      // Format followers count
+      const formatFollowers = (count) => {
+        if (!count) return null;
+        if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+        if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+        return count.toString();
+      };
+
+      // Determine if launched (either status is 'live' or has launched_at date)
+      const isLaunched = row.status === 'live' || !!row.launched_at;
+      
+      return {
+        address: row.wallet_address,
+        name: row.name,
+        handle: row.handle || `@${row.name.toLowerCase().replace(/\s+/g, '')}`,
+        tokenName: row.token_name || `${row.name} Token`,
+        symbol: row.token_symbol || row.name.substring(0, 5).toUpperCase().replace(/\s/g, ''),
+        totalPledgedETH: row.total_pledged_eth.toString(),
+        totalPledgedUSDC: row.total_pledged_usdc.toString(),
+        thresholdETH: row.pledge_threshold_eth.toString(),
+        thresholdUSDC: row.pledge_threshold_usdc.toString(),
+        pledgerCount: parseInt(row.pledge_count) || 0,
+        thresholdMet: row.threshold_met,
+        isApproved: row.is_approved,
+        isLaunched: isLaunched,
+        tokenAddress: row.token_address,
+        createdAt: new Date(row.created_at).getTime(),
+        launchedAt: row.launched_at ? new Date(row.launched_at).getTime() : null,
+        
+        // UI data
+        avatar: row.avatar_url,
+        followers: formatFollowers(row.followers_count),
+        category: row.category,
+        description: row.description,
+        verified: row.verified || false,
+        
+        // Trading data (for live tokens)
+        currentPrice: row.current_price ? parseFloat(row.current_price) : null,
+        marketCap: row.market_cap ? parseFloat(row.market_cap) : null,
+        volume24h: row.volume_24h ? parseFloat(row.volume_24h) : null,
+        priceChange24h: row.price_change_24h ? parseFloat(row.price_change_24h) : null
+      };
+    });
+
+    console.log(`✅ Found ${influencers.length} influencers available for pledging/trading`);
+    
+    // Add debug info
+    influencers.forEach(inf => {
+      console.log(`- ${inf.name}: ${inf.isLaunched ? 'LIVE' : inf.isApproved ? 'APPROVED' : inf.thresholdMet ? 'THRESHOLD MET' : 'PLEDGING'}`);
+    });
+    
+    res.json(influencers);
+
+  } catch (error) {
+    console.error('❌ Error fetching influencers:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch influencers', 
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// GET /api/pledge/influencer/:address - Get specific influencer by address
+router.get('/influencer/:address', async (req, res) => {
+  try {
+    const { address } = req.params;
+    console.log('📊 Fetching specific influencer:', address);
+    
+    const result = await db.query(`
+      SELECT 
+        i.*,
+        -- Calculate if threshold is met
+        CASE 
+          WHEN (i.pledge_threshold_eth > 0 AND COALESCE(i.total_pledged_eth, 0) >= i.pledge_threshold_eth) OR
+               (i.pledge_threshold_usdc > 0 AND COALESCE(i.total_pledged_usdc, 0) >= i.pledge_threshold_usdc)
+          THEN true 
+          ELSE false 
+        END as threshold_met
+      FROM influencers i
+      WHERE i.wallet_address = $1
+    `, [address]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Influencer not found'
+      });
+    }
+
+    const row = result.rows[0];
+    
+    // Format the response similar to the list endpoint
+    const influencer = {
+      address: row.wallet_address,
+      name: row.name,
+      handle: row.handle || `@${row.name.toLowerCase().replace(/\s+/g, '')}`,
+      tokenName: row.token_name || `${row.name} Token`,
+      symbol: row.token_symbol || row.name.substring(0, 5).toUpperCase().replace(/\s/g, ''),
+      totalPledgedETH: (row.total_pledged_eth || 0).toString(),
+      totalPledgedUSDC: (row.total_pledged_usdc || 0).toString(),
+      thresholdETH: (row.pledge_threshold_eth || 0).toString(),
+      thresholdUSDC: (row.pledge_threshold_usdc || 0).toString(),
+      pledgerCount: parseInt(row.pledge_count) || 0,
+      thresholdMet: row.threshold_met,
+      isApproved: row.is_approved || false,
+      isLaunched: row.status === 'live' || !!row.launched_at,
+      tokenAddress: row.token_address,
+      createdAt: new Date(row.created_at).getTime(),
+      launchedAt: row.launched_at ? new Date(row.launched_at).getTime() : null,
+      
+      // UI data
+      avatar: row.avatar_url,
+      followers: row.followers_count ? (row.followers_count >= 1000000 ? `${(row.followers_count / 1000000).toFixed(1)}M` : `${(row.followers_count / 1000).toFixed(1)}K`) : null,
+      category: row.category,
+      description: row.description,
+      verified: row.verified || false
+    };
+
+    res.json(influencer);
+
+  } catch (error) {
+    console.error('❌ Error fetching influencer:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch influencer', 
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 module.exports = router;

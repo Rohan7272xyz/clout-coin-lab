@@ -10,7 +10,7 @@ const Footer = () => {
               <span className="text-xl font-bold">CoinFluence</span>
             </div>
             <p className="text-gray-light mb-4 max-w-md">
-              The first platform to let you invest in people. Back trending influencers with meme coins and profit from their success.
+              The first platform to let you invest in people. Back trending influencers with crypto coins and profit from their success.
             </p>
             <div className="flex space-x-4">
               <a

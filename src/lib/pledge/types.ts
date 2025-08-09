@@ -2,6 +2,7 @@
 export interface InfluencerPledgeData {
     address: string;
     name: string;
+    handle: string;
     tokenName: string;
     symbol: string;
     totalPledgedETH: string;
@@ -15,14 +16,15 @@ export interface InfluencerPledgeData {
     tokenAddress?: string;
     createdAt: number;
     launchedAt?: number;
-    
+
     // Additional UI data from database
     avatar?: string;
     followers?: string;
     category?: string;
     description?: string;
     verified?: boolean;
-  }
+}
+
   
   export interface UserPledge {
     ethAmount: string;
