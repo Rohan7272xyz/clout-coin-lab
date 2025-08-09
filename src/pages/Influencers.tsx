@@ -267,24 +267,13 @@ const Influencers = () => {
                 Invest in your favorite influencers. Trade live tokens or pledge to upcoming launches.
               </p>
             </div>
-
-            {/* Error Banner */}
-            {error && influencers.length > 0 && (
-              <div className="max-w-4xl mx-auto mb-6">
-                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 text-center">
-                  <p className="text-yellow-400 text-sm">
-                    ⚠️ API connection issue. Showing cached data. <button onClick={loadInfluencers} className="underline">Retry</button>
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
         </section>
 
         {/* Premium Grid - Takes Most of Page */}
         <section className="flex-1 pb-8">
           <div className="container mx-auto px-4 h-full">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto justify-items-center">
+            <div className="flex flex-wrap justify-center gap-6 max-w-6xl mx-auto">
               {influencers.map((influencer, index) => {
                 const ethProgress = calculateProgress(influencer.totalPledgedETH, influencer.thresholdETH);
                 const usdcProgress = calculateProgress(influencer.totalPledgedUSDC, influencer.thresholdUSDC);
