@@ -284,7 +284,7 @@ const Influencers = () => {
         {/* Premium Grid - Takes Most of Page */}
         <section className="flex-1 pb-8">
           <div className="container mx-auto px-4 h-full">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto justify-items-center">
               {influencers.map((influencer, index) => {
                 const ethProgress = calculateProgress(influencer.totalPledgedETH, influencer.thresholdETH);
                 const usdcProgress = calculateProgress(influencer.totalPledgedUSDC, influencer.thresholdUSDC);
@@ -457,31 +457,6 @@ const Influencers = () => {
           </div>
         </section>
 
-        {/* Premium CTA Strip */}
-        <section className="py-8 border-t border-zinc-800">
-          <div className="container mx-auto px-4 text-center">
-            <h3 className="text-xl font-bold mb-4 text-white">
-              Be among the first investors in tomorrow's most influential people.
-            </h3>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Button 
-                size="lg"
-                className="bg-primary text-black hover:bg-primary/90 font-semibold px-8 py-3 shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all duration-300"
-                onClick={() => navigate('/trending')}
-              >
-                Explore Trending Coins
-              </Button>
-              <Button 
-                variant="outline"
-                size="lg"
-                className="border-primary/30 text-primary hover:bg-primary/10 px-8 py-3 transition-all duration-300"
-                onClick={handleShare}
-              >
-                Share CoinFluence
-              </Button>
-            </div>
-          </div>
-        </section>
       </main>
       
       <Footer />
