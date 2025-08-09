@@ -162,8 +162,16 @@ export default function SignIn() {
       <Header />
       <div className="flex-1 flex flex-col justify-center items-center">
         <div className="flex flex-col items-center mb-6">
-          <div className="w-12 h-12 bg-primary rounded-md flex items-center justify-center group transition-shadow duration-300 mb-2 hover:shadow-[0_0_16px_2px_rgba(34,197,94,0.5)]">
-            <span className="text-primary-foreground font-bold text-2xl">P</span>
+          {/* Updated logo section to match header */}
+          <div className="group transition-all duration-300 hover:scale-105">
+            <img
+              src="/20250805_1007_Modern Coinfluence Logo_simple_compose_01k1x8x0hheaaraepnewcd4d46.png"
+              alt="CoinFluence Logo"
+              className="relative top-4 w-28 h-28 object-contain drop-shadow-md transition-all duration-300 group-hover:drop-shadow-[0_0_16px_rgba(34,197,94,0.5)]"
+              style={{ 
+                imageRendering: 'crisp-edges',
+              }}
+            />
           </div>
           <h1 className="text-2xl font-bold text-white">
             {isSignUp ? "Create Account" : "Sign In"}
