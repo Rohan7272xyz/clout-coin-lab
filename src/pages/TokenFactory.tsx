@@ -216,7 +216,7 @@ const TokenFactoryDashboard = () => {
       toast.error("Please connect your wallet first");
       return;
     }
-
+  
     setIsCreating(true);
     try {
       const creationFee = factoryInfo?.[2] || parseEther("0.01");
@@ -233,15 +233,16 @@ const TokenFactoryDashboard = () => {
           BigInt(formData.totalSupply)
         ],
         value: creationFee,
-        chain: undefined, // or specify your chain object if needed
+        chain: undefined,
         account: address
       });
       
       toast.success("Transaction submitted! Waiting for confirmation...");
       
     } catch (error: any) {
-      console.error("Error creating coin:", error);
-      toast.error(error.message || "Failed to create token");
+      console.error("Full error details:", error); // Keep full error in console for debugging
+      const cleanMessage = getCleanErrorMessage(error);
+      toast.error(cleanMessage);
     } finally {
       setIsCreating(false);
     }
@@ -304,6 +305,46 @@ const TokenFactoryDashboard = () => {
       </div>
     );
   }
+
+  const getCleanErrorMessage = (error: any): string => {
+    const errorMessage = error?.message || error?.toString() || 'Unknown error';
+    
+    // Handle common user-friendly scenarios
+    if (errorMessage.includes('User rejected') || 
+        errorMessage.includes('User denied') || 
+        errorMessage.includes('rejected the request')) {
+      return 'Transaction cancelled by user';
+    }
+    
+    if (errorMessage.includes('insufficient funds') || 
+        errorMessage.includes('Insufficient funds')) {
+      return 'Insufficient funds to complete transaction';
+    }
+    
+    if (errorMessage.includes('execution reverted')) {
+      return 'Transaction failed - please check your inputs';
+    }
+    
+    if (errorMessage.includes('network') || 
+        errorMessage.includes('Network')) {
+      return 'Network error - please try again';
+    }
+    
+    if (errorMessage.includes('gas')) {
+      return 'Transaction failed due to gas issues';
+    }
+    
+    // For any other error, extract just the first meaningful part
+    const cleanMessage = errorMessage
+      .split('Request Arguments:')[0] // Remove technical details
+      .split('Contract Call:')[0]     // Remove contract details
+      .split('Docs:')[0]              // Remove documentation links
+      .split('Details:')[0]           // Remove additional details
+      .split('Version:')[0]           // Remove version info
+      .trim();
+    
+    return cleanMessage || 'Transaction failed - please try again';
+  };
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -452,7 +493,7 @@ const TokenFactoryDashboard = () => {
                   <Alert className="border-red-500/20 bg-red-500/5">
                     <AlertCircle className="h-4 w-4 text-red-400" />
                     <AlertDescription className="text-red-400">
-                      Error: {createCoinError.message}
+                      {getCleanErrorMessage(createCoinError)}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -533,5 +574,6 @@ const TokenFactoryDashboard = () => {
     </div>
   );
 };
+
 
 export default TokenFactoryDashboard;
