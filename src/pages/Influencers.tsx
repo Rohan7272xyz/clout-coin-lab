@@ -1,4 +1,4 @@
-// src/pages/Influencers.tsx - Updated with database integration
+// src/pages/Influencers.tsx - Updated with clearer classifications and terminology
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -17,7 +17,8 @@ import {
   Share2,
   AlertCircle,
   Loader2,
-  Zap
+  Zap,
+  Target
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import PledgeModal from "@/components/pledge/pledgeModal";
@@ -85,7 +86,7 @@ const Influencers = () => {
           launchedAt: Date.now() - 43200000,
           avatar: "https://mail.google.com/mail/u/0?ui=2&ik=84109c25fb&attid=0.1&permmsgid=msg-f:1839751187009719696&th=19881bf508d14d90&view=fimg&fur=ip&permmsgid=msg-f:1839751187009719696&sz=s0-l75-ft&attbid=ANGjdJ8YS49EUow6KO-Z9L9mpl149Y1qAUSPs3pBsWJ6oLpKPu2VLZJJ3_b80PLCHpGnMuAc-5pppHLR3RsOypN--bi1HvWgBbusbSB_td3WmhVuAJFKgDcoqrCsK0o&disp=emb&realattid=D5CCD335-277C-42D2-8E30-8B333DB3655B&zw",
           followers: "2.4M",
-          category: "Crypto",
+          category: "Cryptocurrency & Blockchain",
           description: "Leading crypto educator and market analyst specializing in emerging blockchain technologies.",
           verified: true
         },
@@ -106,8 +107,8 @@ const Influencers = () => {
           createdAt: Date.now() - 172800000,
           avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=alexchen",
           followers: "1.8M",
-          category: "Technology",
-          description: "Tech entrepreneur and AI researcher sharing insights on emerging technologies.",
+          category: "Technology & Innovation",
+          description: "Tech entrepreneur and AI researcher sharing insights on emerging technologies and innovation.",
           verified: true
         }
       ]);
@@ -128,6 +129,38 @@ const Influencers = () => {
     const num = parseFloat(amount);
     if (isNaN(num)) return '0';
     return num.toFixed(decimals);
+  };
+
+  // Updated to get appropriate category badge styling
+  const getCategoryBadgeStyle = (category: string): string => {
+    const categoryStyles: Record<string, string> = {
+      'Cryptocurrency & Blockchain': 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+      'Technology & Innovation': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      'Fitness & Wellness': 'bg-green-500/20 text-green-300 border-green-500/30',
+      'Entertainment & Media': 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+      'Business & Finance': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      'Gaming & Esports': 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+      'Fashion & Lifestyle': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+      'Education & Learning': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+    };
+    
+    return categoryStyles[category] || 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30';
+  };
+
+  // Updated progress labels
+  const getProgressLabel = (influencer: InfluencerPledgeData): string => {
+    if (influencer.isLaunched) return 'Market Performance';
+    if (influencer.thresholdMet) return 'Interest Target Reached';
+    return 'Interest Level';
+  };
+
+  const getProgressDescription = (influencer: InfluencerPledgeData): string => {
+    if (influencer.isLaunched) return '85% up today';
+    const overallProgress = Math.max(
+      calculateProgress(influencer.totalPledgedETH, influencer.thresholdETH),
+      calculateProgress(influencer.totalPledgedUSDC, influencer.thresholdUSDC)
+    );
+    return `${overallProgress.toFixed(1)}% of target reached`;
   };
 
   const handleInfluencerClick = (influencer: InfluencerPledgeData) => {
@@ -264,7 +297,7 @@ const Influencers = () => {
                 </span>
               </h1>
               <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-                Invest in your favorite influencers. Trade live tokens or pledge to upcoming launches.
+                Invest in your favorite influencers. Trade live tokens or show interest in upcoming launches.
               </p>
             </div>
           </div>
@@ -322,7 +355,7 @@ const Influencers = () => {
                         }`} />
                         {influencer.isLaunched ? 'Live' : 
                          influencer.isApproved ? 'Approved' :
-                         influencer.thresholdMet ? 'Ready' : 'Pledging'}
+                         influencer.thresholdMet ? 'Ready' : 'Accepting Interest'}
                       </Badge>
                     </div>
 
@@ -358,8 +391,12 @@ const Influencers = () => {
                         </div>
                       )}
 
+                      {/* Updated Category Badge with Better Styling */}
                       {influencer.category && (
-                        <Badge variant="outline" className="border-zinc-700 text-zinc-300 bg-zinc-800/50">
+                        <Badge 
+                          variant="outline" 
+                          className={`border-0 text-xs px-3 py-1 ${getCategoryBadgeStyle(influencer.category)}`}
+                        >
                           {influencer.category}
                         </Badge>
                       )}
@@ -372,15 +409,16 @@ const Influencers = () => {
                         </p>
                       )}
                       
-                      {/* Progress Section */}
+                      {/* Updated Progress Section with Better Labels */}
                       <div className="space-y-3 mb-4">
                         <div className="text-center">
-                          <div className="text-xs text-gray-400 mb-1">
-                            {influencer.isLaunched ? 'Market Performance' : 'Funding Progress'}
+                          <div className="text-xs text-gray-400 mb-2 flex items-center justify-center gap-1">
+                            <Target className="w-3 h-3" />
+                            {getProgressLabel(influencer)}
                           </div>
                           <Progress value={influencer.isLaunched ? 85 : overallProgress} className="h-2 mb-1" />
                           <div className="text-xs font-medium text-primary">
-                            {influencer.isLaunched ? '85% up today' : `${overallProgress.toFixed(1)}% Complete`}
+                            {getProgressDescription(influencer)}
                           </div>
                         </div>
 
@@ -388,12 +426,12 @@ const Influencers = () => {
                           <div className="flex items-center gap-1">
                             <DollarSign className="w-3 h-3" />
                             <span>
-                              {influencer.isLaunched ? 'Trading' : formatPledgeAmount(influencer.totalPledgedETH)} ETH
+                              {influencer.isLaunched ? 'Trading' : `${formatPledgeAmount(influencer.totalPledgedETH)} ETH interested`}
                             </span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Users className="w-3 h-3" />
-                            <span>{influencer.pledgerCount} {influencer.isLaunched ? 'holders' : 'pledgers'}</span>
+                            <span>{influencer.pledgerCount} {influencer.isLaunched ? 'holders' : 'interested'}</span>
                           </div>
                         </div>
                       </div>
@@ -426,12 +464,12 @@ const Influencers = () => {
                         ) : influencer.isApproved ? (
                           <>
                             <Check className="w-4 h-4 mr-2" />
-                            Approved - Pledge Now
+                            Approved - Show Interest
                           </>
                         ) : (
                           <>
                             <Bell className="w-4 h-4 mr-2" />
-                            Pledge ETH
+                            Show Interest
                           </>
                         )}
                       </Button>
