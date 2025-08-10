@@ -1,4 +1,4 @@
-// Backend/index.cjs - Updated to include dashboard routes
+// Backend/index.cjs - Updated to include dashboard routes and Phase 2C Analytics API
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -17,16 +17,21 @@ try {
   console.log('🔥 Firebase Admin SDK initialized');
 } catch (error) {
   console.error('❌ Failed to initialize Firebase Admin SDK:', error);
-  console.error('⚠️  Authentication will not work properly');
+  console.error('⚠️ Authentication will not work properly');
 }
 
-// Import routes AFTER Firebase initialization
+// Import existing routes AFTER Firebase initialization
 const authRoutes = require('./routes/authRoutes');
 const influencerRoutes = require('./routes/influencerRoutes');
 const testRoutes = require('./routes/testRoutes');
 const pledgeRoutes = require('./routes/pledgeRoutes');
 const userStatusRoutes = require('./routes/userStatusRoutes');
-const dashboardRoutes = require('./routes/dashboardRoutes'); // Add dashboard routes
+const dashboardRoutes = require('./routes/dashboardRoutes');
+
+// NEW: Phase 2C Production Analytics API Routes
+const quotesRoutes = require('./routes/quotesRoutes');
+const chartRoutes = require('./routes/chartRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000; // Use port 3000 as default
@@ -40,44 +45,80 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Routes
+// Existing Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/influencer', influencerRoutes);
 app.use('/api/test', testRoutes);
 app.use('/api/pledge', pledgeRoutes);
 app.use('/api/status', userStatusRoutes);
-app.use('/api/dashboard', dashboardRoutes); // Add dashboard routes
+app.use('/api/dashboard', dashboardRoutes);
 
-// Root endpoint
+// NEW: Phase 2C Production Analytics Routes
+app.use('/api/quotes', quotesRoutes);      // Real-time quotes API
+app.use('/api/chart', chartRoutes);        // OHLCV chart data API
+app.use('/api/analytics', analyticsRoutes); // Performance, news, statistics API
+
+// Root endpoint - Updated to include new analytics endpoints
 app.get('/', (req, res) => {
-  res.json({ 
-    message: '🚀 CoinFluence Backend Running',
+  res.json({
+    message: '🚀 CoinFluence Backend Running - Phase 2C Analytics Ready',
     endpoints: {
+      // Existing endpoints
       auth: '/api/auth',
       influencer: '/api/influencer',
       test: '/api/test',
       pledge: '/api/pledge',
       status: '/api/status',
-      dashboard: '/api/dashboard'
+      dashboard: '/api/dashboard',
+      // NEW: Phase 2C Analytics endpoints
+      quotes: '/api/quotes',
+      chart: '/api/chart',
+      analytics: '/api/analytics'
+    },
+    analytics: {
+      quotes: {
+        realTime: '/api/quotes/:tokenId',
+        mini: '/api/quotes/:tokenId/mini'
+      },
+      charts: {
+        ohlcv: '/api/chart/:tokenId/:range',
+        ranges: '/api/chart/:tokenId/ranges'
+      },
+      analytics: {
+        performance: '/api/analytics/:tokenId/performance',
+        statistics: '/api/analytics/:tokenId/statistics',
+        news: '/api/analytics/:tokenId/news',
+        profile: '/api/analytics/:tokenId/profile'
+      }
     },
     status: 'operational',
-    firebase: 'initialized'
+    firebase: 'initialized',
+    phase: '2C - Production Analytics API Ready'
   });
 });
 
-// Health check endpoint
+// Health check endpoint - Enhanced with analytics status
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
+  res.json({
+    status: 'healthy',
     timestamp: new Date().toISOString(),
-    firebase: 'initialized'
+    firebase: 'initialized',
+    analytics: 'enabled',
+    phase: '2C',
+    features: [
+      'Real-time quotes',
+      'OHLCV charts',
+      'Performance analytics',
+      'News feed',
+      'Market statistics'
+    ]
   });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  res.status(err.status || 500).json({ 
+  res.status(err.status || 500).json({
     error: err.message || 'Internal server error',
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
@@ -85,9 +126,9 @@ app.use((err, req, res, next) => {
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ 
-    error: 'Not Found', 
-    message: `Cannot ${req.method} ${req.url}` 
+  res.status(404).json({
+    error: 'Not Found',
+    message: `Cannot ${req.method} ${req.url}`
   });
 });
 
@@ -99,4 +140,9 @@ app.listen(PORT, () => {
   console.log(`🔗 API endpoints available at http://localhost:${PORT}/api`);
   console.log(`🚀 Firebase Admin SDK status: initialized`);
   console.log(`📈 Dashboard routes enabled at http://localhost:${PORT}/api/dashboard`);
+  console.log(`📊 Phase 2C Analytics API routes enabled:`);
+  console.log(`   💹 Quotes: http://localhost:${PORT}/api/quotes`);
+  console.log(`   📈 Charts: http://localhost:${PORT}/api/chart`);
+  console.log(`   📊 Analytics: http://localhost:${PORT}/api/analytics`);
+  console.log(`🎯 Ready for Yahoo Finance-style frontend integration!`);
 });
