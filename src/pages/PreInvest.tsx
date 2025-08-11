@@ -1,15 +1,13 @@
 // FILE: src/pages/PreInvest.tsx
-// Updated with Rohini (poop) and TBD influencers
+// Updated to remove CTA button and auto-scroll to influencer tokens
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import Header from "@/components/ui/header";
 import Footer from "@/components/ui/footer";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount } from "wagmi";
 import { useNavigate } from "react-router-dom";
 import { 
   TrendingUp, 
@@ -20,81 +18,147 @@ import {
   Zap,
   ArrowRight,
   Check,
-  Clock
+  Clock,
+  Loader2,
+  Target
 } from "lucide-react";
-
-// Updated featured influencers - First is Rohini, rest are TBD
-const featuredInfluencers = [
-  {
-    id: 1,
-    name: "Rohini",
-    handle: "@rohini",
-    followers: "2.4M",
-    category: "Crypto",
-    avatar: "💩", // poop emoji
-    price: "$0.00",
-    change: "+0%",
-    description: "Leading crypto educator and market analyst",
-    verified: true,
-    comingSoon: true
-  },
-  {
-    id: 2,
-    name: "TBD",
-    handle: "@tbd2",
-    followers: "1.8M",
-    category: "Technology",
-    avatar: "?", // question mark
-    price: "$0.00",
-    change: "+0%",
-    description: "Upcoming tech influencer",
-    verified: true,
-    comingSoon: true
-  },
-  {
-    id: 3,
-    name: "TBD",
-    handle: "@tbd3",
-    followers: "3.1M",
-    category: "Fitness",
-    avatar: "?", // question mark
-    price: "$0.00",
-    change: "+0%",
-    description: "Upcoming fitness influencer",
-    verified: true,
-    comingSoon: true
-  }
-];
+import PledgeModal from "@/components/pledge/pledgeModal";
+import type { InfluencerPledgeData } from "@/lib/pledge/types";
 
 const PreInvest = () => {
-  const [email, setEmail] = useState("");
-  const [isSubscribed, setIsSubscribed] = useState(false);
-  const { isConnected } = useAccount();
   const navigate = useNavigate();
-  const featuredInfluencersRef = useRef<HTMLElement>(null);
+  const influencerTokensRef = useRef<HTMLElement>(null);
+  const [selectedInfluencer, setSelectedInfluencer] = useState<InfluencerPledgeData | null>(null);
+  const [showPledgeModal, setShowPledgeModal] = useState(false);
+  
+  // Data state
+  const [influencers, setInfluencers] = useState<InfluencerPledgeData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Auto-scroll to featured influencers when wallet connects
   useEffect(() => {
-    if (isConnected && featuredInfluencersRef.current) {
-      setTimeout(() => {
-        // Get header height for proper offset calculation
+    loadInfluencers();
+  }, []);
+
+  // Auto-scroll to influencer tokens after page loads
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (influencerTokensRef.current) {
         const header = document.querySelector('header');
-        const headerHeight = header ? header.offsetHeight : 80; // fallback to 80px
+        const headerHeight = header ? header.offsetHeight : 80;
         
-        const elementTop = featuredInfluencersRef.current!.getBoundingClientRect().top + window.scrollY;
+        const elementTop = influencerTokensRef.current.getBoundingClientRect().top + window.scrollY;
         window.scrollTo({
           top: elementTop - headerHeight - 32, // 32px extra spacing
           behavior: "smooth"
         });
-      }, 200); // Small delay to let the UI update
-    }
-  }, [isConnected]);
+      }
+    }, 1500); // Wait 1.5 seconds after page load to auto-scroll
 
-  const handleEarlyAccess = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handle early access signup
-    setIsSubscribed(true);
-    // You can add API call here to save email
+    return () => clearTimeout(timer);
+  }, []);
+
+  const loadInfluencers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      console.log('🔍 Fetching influencers from:', `${apiUrl}/api/pledge/influencers`);
+      
+      const response = await fetch(`${apiUrl}/api/pledge/influencers`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('✅ Influencers loaded:', data);
+      
+      setInfluencers(data);
+    } catch (err) {
+      console.error('❌ Error loading influencers:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load influencers');
+      
+      // No fallback data - force proper error handling
+      setInfluencers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateProgress = (current: string, threshold: string): number => {
+    const currentNum = parseFloat(current);
+    const thresholdNum = parseFloat(threshold);
+    
+    if (thresholdNum === 0) return 0;
+    return Math.min((currentNum / thresholdNum) * 100, 100);
+  };
+
+  const formatPledgeAmount = (amount: string, decimals = 4): string => {
+    const num = parseFloat(amount);
+    if (isNaN(num)) return '0';
+    return num.toFixed(decimals);
+  };
+
+  const getCategoryBadgeStyle = (category: string): string => {
+    const categoryStyles: Record<string, string> = {
+      'Cryptocurrency & Blockchain': 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+      'Technology & Innovation': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      'Fitness & Wellness': 'bg-green-500/20 text-green-300 border-green-500/30',
+      'Entertainment & Media': 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+      'Business & Finance': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      'Gaming & Esports': 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+      'Fashion & Lifestyle': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+      'Education & Learning': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+    };
+    
+    return categoryStyles[category] || 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30';
+  };
+
+  const getProgressLabel = (influencer: InfluencerPledgeData): string => {
+    if (influencer.isLaunched) return 'Market Performance';
+    if (influencer.thresholdMet) return 'Interest Target Reached';
+    return 'Interest Level';
+  };
+
+  const getProgressDescription = (influencer: InfluencerPledgeData): string => {
+    if (influencer.isLaunched) return '85% up today';
+    const overallProgress = Math.max(
+      calculateProgress(influencer.totalPledgedETH, influencer.thresholdETH),
+      calculateProgress(influencer.totalPledgedUSDC, influencer.thresholdUSDC)
+    );
+    return `${overallProgress.toFixed(1)}% of target reached`;
+  };
+
+  const handleInfluencerClick = (influencer: InfluencerPledgeData) => {
+    if (influencer.isLaunched) {
+      // Navigate to coin detail for live tokens - use name without spaces
+      const coinId = influencer.name.toLowerCase().replace(/\s+/g, '');
+      navigate(`/coin/${coinId}`);
+    } else {
+      // Show pledge modal for pre-launch
+      setSelectedInfluencer(influencer);
+      setShowPledgeModal(true);
+    }
+  };
+
+  const handlePledgeSubmit = async (amount: string, currency: 'ETH' | 'USDC') => {
+    console.log(`Pledged ${amount} ${currency} to ${selectedInfluencer?.name}`);
+    
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      // Add your pledge submission logic here
+      
+      // For now, just close modal and show success
+      setShowPledgeModal(false);
+      setSelectedInfluencer(null);
+      
+      // Refresh data
+      await loadInfluencers();
+    } catch (error) {
+      console.error('Error submitting pledge:', error);
+    }
   };
 
   return (
@@ -102,55 +166,25 @@ const PreInvest = () => {
       <Header />
       
       <main className="pt-16">
-        {/* Hero Section */}
-        <section className="relative py-20 overflow-hidden">
+        {/* Hero Section - REMOVED Connect Wallet Button */}
+        <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0 chart-lines"></div>
-          <div className="container mx-auto px-4 text-center relative z-10">
-            <Badge className="mb-6 bg-primary/20 text-primary border-primary/30 hover:bg-primary/30">
-              <Clock className="w-4 h-4 mr-2" />
+          <div className="container mx-auto px-4 text-center relative z-10 min-h-[calc(100vh-80px)] flex flex-col justify-start pt-32">
+            <Badge className="mb-4 bg-primary/20 text-primary border-primary/30 hover:bg-primary/30 text-xs px-3 py-1 inline-flex items-center w-fit mx-auto">
+              <Clock className="w-3 h-3 mr-1" />
               Pre-Launch Access
             </Badge>
             
-            <h1 className="text-5xl md:text-7xl font-black mb-6 bg-gradient-to-r from-foreground via-foreground to-primary bg-clip-text text-transparent">
-              Get Ready to Invest
+            <h1 className="text-5xl md:text-7xl font-black mb-4">
+              <span className="text-white">Get Ready to </span>
+              <span className="bg-gradient-to-r from-primary to-green-400 bg-clip-text text-transparent">Invest</span>
             </h1>
             
-            <p className="text-xl md:text-2xl text-gray-light mb-8 max-w-3xl mx-auto">
+            <p className="text-xl md:text-2xl text-gray-light mb-6 max-w-3xl mx-auto">
               Be among the first to invest in your favorite influencers. Join our waitlist for exclusive early access to the platform.
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-              {/* FILE: src/pages/PreInvest.tsx (lines ~85-105) */}
-              {!isConnected ? (
-                <ConnectButton.Custom>
-                  {({ account, chain, openConnectModal, mounted }) => {
-                    const ready = mounted;
-                    const connected = ready && !!account && !!chain;
-                    
-                    return (
-                      <Button
-                        size="lg"
-                        className="bg-primary text-primary-foreground hover:bg-primary/90 neon-glow-strong text-lg px-8 py-4 h-auto font-semibold"
-                        onClick={openConnectModal}
-                        disabled={connected}
-                      >
-                        <Zap className="w-5 h-5 mr-2" />
-                        {connected ? "Wallet Connected" : "Connect Wallet & Join Waitlist"}
-                      </Button>
-                    );
-                  }}
-                </ConnectButton.Custom>
-              ) : (
-                <Button
-                  size="lg"
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 neon-glow-strong text-lg px-8 py-4 h-auto font-semibold"
-                  disabled
-                >
-                  <Check className="w-5 h-5 mr-2" />
-                  Wallet Connected
-                </Button>
-              )}
-            </div>
+            {/* REMOVED: Connect Wallet button section */}
             
             <div className="flex justify-center items-center space-x-8 text-sm text-gray-muted">
               <div className="flex items-center">
@@ -165,96 +199,210 @@ const PreInvest = () => {
           </div>
         </section>
 
-        {/* Featured Influencers Preview */}
-        <section ref={featuredInfluencersRef} className="py-16 bg-card/50">
+        {/* Full Influencers Section - REPLACED small cards with complete interface */}
+        <section ref={influencerTokensRef} className="py-16 bg-card/50">
           <div className="container mx-auto px-4">
-            <div className="text-center mb-10">
-              <h2 className="text-4xl font-bold mb-4">Featured Influencers</h2>
-              <p className="text-xl text-gray-light max-w-2xl mx-auto">
-                Get a preview of the influencers you'll be able to invest in once we launch
+            <div className="text-center mb-12">
+              <h2 className="text-4xl md:text-5xl font-black mb-4">
+                <span className="inline-block">Influencer{' '}</span>
+                <span className="bg-gradient-to-r from-primary to-green-400 bg-clip-text text-transparent">
+                  Tokens
+                </span>
+              </h2>
+              <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+                Invest in your favorite influencers. Trade live tokens or show interest in upcoming launches.
               </p>
             </div>
             
-            <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto mb-10">
-              {featuredInfluencers.map((influencer) => (
-                <Card key={influencer.id} className="relative bg-card/80 border-border hover:border-primary/50 transition-all duration-300 group">
-                  <CardHeader className="text-center">
-                    {/* Updated avatar rendering for Rohini vs TBD */}
-                    <div className="relative w-20 h-20 mx-auto mb-4">
-                      {influencer.id === 1 ? (
-                        // Rohini gets a poop emoji in a circle
-                        <div className="w-full h-full rounded-full flex items-center justify-center bg-zinc-800 border-2 border-zinc-700">
-                          <span className="text-3xl">💩</span>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-gray-400">Loading influencer tokens...</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Responsive horizontal cards - automatically adjusts based on data */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto mb-10 justify-items-center">
+                  {influencers.map((influencer, index) => {
+                    const ethProgress = calculateProgress(influencer.totalPledgedETH, influencer.thresholdETH);
+                    const usdcProgress = calculateProgress(influencer.totalPledgedUSDC, influencer.thresholdUSDC);
+                    const overallProgress = Math.max(ethProgress, usdcProgress);
+                    const isHot = influencer.thresholdMet || influencer.isLaunched;
+
+                    return (
+                      <Card 
+                        key={influencer.address} 
+                        className={`relative bg-zinc-900 border-zinc-800 hover:border-primary/50 transition-all duration-500 group cursor-pointer overflow-hidden animate-slide-in-up w-full max-w-sm ${
+                          isHot ? 'ring-1 ring-primary/20' : ''
+                        }`}
+                        style={{
+                          animationDelay: `${index * 100}ms`
+                        }}
+                        onClick={() => handleInfluencerClick(influencer)}
+                      >
+                        {/* Hot Badge */}
+                        {isHot && (
+                          <div className="absolute top-3 left-3 z-10">
+                            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs animate-fade-in">
+                              🔥 Hot
+                            </Badge>
+                          </div>
+                        )}
+
+                        {/* Status Badge */}
+                        <div className="absolute top-3 right-3 z-10">
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs px-2 py-1 ${
+                              influencer.isLaunched 
+                                ? 'border-primary/50 text-primary bg-primary/10' 
+                                : influencer.isApproved
+                                ? 'border-blue-500/50 text-blue-500 bg-blue-500/10'
+                                : influencer.thresholdMet
+                                ? 'border-yellow-500/50 text-yellow-500 bg-yellow-500/10'
+                                : 'border-gray-500/50 text-gray-500 bg-gray-500/10'
+                            }`}
+                          >
+                            <div className={`w-2 h-2 rounded-full mr-1 transition-transform duration-500 ${
+                              influencer.isLaunched ? 'bg-primary scale-110 shadow-lg shadow-primary/30' : 
+                              influencer.isApproved ? 'bg-blue-500 scale-100' :
+                              influencer.thresholdMet ? 'bg-yellow-500 scale-100' :
+                              'bg-gray-500 scale-100'
+                            }`} />
+                            {influencer.isLaunched ? 'Live' : 
+                             influencer.isApproved ? 'Approved' :
+                             influencer.thresholdMet ? 'Ready' : 'Accepting Interest'}
+                          </Badge>
                         </div>
-                      ) : (
-                        // All others get question mark
-                        <div className="w-full h-full rounded-full flex items-center justify-center bg-zinc-800 border-2 border-zinc-700">
-                          <span className="text-3xl text-gray-400">?</span>
-                        </div>
-                      )}
-                      {influencer.verified && (
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                          <Check className="w-3 h-3 text-primary-foreground" />
-                        </div>
-                      )}
-                    </div>
-                    
-                    <CardTitle className="text-xl">{influencer.name}</CardTitle>
-                    <CardDescription className="text-gray-light">
-                      {influencer.handle} • {influencer.followers} followers
-                    </CardDescription>
-                  </CardHeader>
-                  
-                  <CardContent>
-                    <div className="text-center mb-4">
-                      <Badge variant="secondary" className="mb-2">
-                        {influencer.category}
-                      </Badge>
-                      <p className="text-sm text-gray-muted">{influencer.description}</p>
-                    </div>
-                    
-                    <div className="flex justify-between items-center mb-4 p-3 bg-background/50 rounded-lg">
-                      <div>
-                        <div className="text-sm text-gray-muted">Current Price</div>
-                        <div className="font-semibold">{influencer.price}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm text-gray-muted">24h Change</div>
-                        <div className="font-semibold text-primary">{influencer.change}</div>
-                      </div>
-                    </div>
-                    
-                    <Button 
-                      className="w-full bg-muted hover:bg-muted/80 text-muted-foreground cursor-not-allowed"
-                      disabled
-                    >
-                      <Clock className="w-4 h-4 mr-2" />
-                      Coming Soon
-                    </Button>
-                  </CardContent>
-                  
-                  {influencer.comingSoon && (
-                    <div className="absolute top-4 right-4">
-                      <Badge variant="outline" className="border-primary/50 text-primary bg-primary/10">
-                        Soon
-                      </Badge>
-                    </div>
-                  )}
-                </Card>
-              ))}
-            </div>
-            
-            {/* Show All Button */}
-            <div className="text-center">
-              <Button 
-                size="lg"
-                className="bg-primary text-primary-foreground hover:bg-primary/90 neon-glow text-lg px-8 py-3 font-semibold"
-                onClick={() => navigate('/influencers')}
-              >
-                <Users className="w-5 h-5 mr-2" />
-                Show All Influencers
-              </Button>
-            </div>
+
+                        <CardHeader className="text-center pb-4 pt-8">
+                          <div className="relative w-24 h-24 mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                            <img
+                              src={influencer.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${influencer.address}`}
+                              alt={influencer.name}
+                              className={`w-full h-full rounded-full object-cover border-2 transition-all duration-300 ${
+                                isHot || influencer.isLaunched 
+                                  ? 'border-primary shadow-lg shadow-primary/25' 
+                                  : 'border-zinc-700 group-hover:border-primary/50'
+                              }`}
+                            />
+                            {influencer.verified && (
+                              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center shadow-lg">
+                                <Check className="w-3 h-3 text-black" />
+                              </div>
+                            )}
+                            {/* Glow effect for hot influencers */}
+                            {isHot && (
+                              <div className="absolute inset-0 rounded-full bg-primary/20 animate-fade-in" />
+                            )}
+                          </div>
+                          
+                          <h3 className="text-lg font-bold text-white mb-1">{influencer.name}</h3>
+                          <p className="text-gray-400 text-sm mb-3">{influencer.handle}</p>
+                          
+                          {influencer.followers && (
+                            <div className="flex items-center justify-center gap-2 mb-3">
+                              <Users className="w-4 h-4 text-primary" />
+                              <span className="text-sm font-semibold text-primary">{influencer.followers} Followers</span>
+                            </div>
+                          )}
+
+                          {/* Category Badge */}
+                          {influencer.category && (
+                            <Badge 
+                              variant="outline" 
+                              className={`border-0 text-xs px-3 py-1 ${getCategoryBadgeStyle(influencer.category)}`}
+                            >
+                              {influencer.category}
+                            </Badge>
+                          )}
+                        </CardHeader>
+                        
+                        <CardContent className="pt-0 pb-6">
+                          {influencer.description && (
+                            <p className="text-sm text-gray-400 text-center mb-4 line-clamp-2 leading-relaxed">
+                              {influencer.description}
+                            </p>
+                          )}
+                          
+                          {/* Progress Section */}
+                          <div className="space-y-3 mb-4">
+                            <div className="text-center">
+                              <div className="text-xs text-gray-400 mb-2 flex items-center justify-center gap-1">
+                                <Target className="w-3 h-3" />
+                                {getProgressLabel(influencer)}
+                              </div>
+                              <Progress value={influencer.isLaunched ? 85 : overallProgress} className="h-2 mb-1" />
+                              <div className="text-xs font-medium text-primary">
+                                {getProgressDescription(influencer)}
+                              </div>
+                            </div>
+
+                            <div className="flex justify-between text-xs text-gray-500">
+                              <div className="flex items-center gap-1">
+                                <DollarSign className="w-3 h-3" />
+                                <span>
+                                  {influencer.isLaunched ? 'Trading' : `${formatPledgeAmount(influencer.totalPledgedETH)} ETH interested`}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                <span>{influencer.pledgerCount} {influencer.isLaunched ? 'holders' : 'interested'}</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <Button 
+                            className={`w-full transition-all duration-300 ${
+                              influencer.isLaunched 
+                                ? 'bg-primary hover:bg-primary/90 text-black font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-105' 
+                                : influencer.thresholdMet
+                                ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border-yellow-500/50 hover:border-yellow-500'
+                                : influencer.isApproved
+                                ? 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border-blue-500/50 hover:border-blue-500'
+                                : 'bg-zinc-800 hover:bg-zinc-700 text-gray-300 border-zinc-700'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleInfluencerClick(influencer);
+                            }}
+                          >
+                            {influencer.isLaunched ? (
+                              <>
+                                <TrendingUp className="w-4 h-4 mr-2" />
+                                Trade Now
+                              </>
+                            ) : influencer.thresholdMet ? (
+                              <>
+                                <Zap className="w-4 h-4 mr-2" />
+                                Ready to Launch
+                              </>
+                            ) : influencer.isApproved ? (
+                              <>
+                                <Check className="w-4 h-4 mr-2" />
+                                Approved - Show Interest
+                              </>
+                            ) : (
+                              <>
+                                <Bell className="w-4 h-4 mr-2" />
+                                Show Interest
+                              </>
+                            )}
+                          </Button>
+                        </CardContent>
+
+                        {/* Hover glow effect */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                {/* REMOVED: Show All Button since this IS the full interface now */}
+              </>
+            )}
           </div>
         </section>
 
@@ -296,7 +444,22 @@ const PreInvest = () => {
           </div>
         </section>
       </main>
+
       <Footer />
+
+      {/* Pledge Modal */}
+      {showPledgeModal && selectedInfluencer && (
+        <PledgeModal
+          isOpen={showPledgeModal}
+          onClose={() => {
+            setShowPledgeModal(false);
+            setSelectedInfluencer(null);
+          }}
+          influencer={selectedInfluencer}
+          onPledgeSubmit={handlePledgeSubmit}
+          onSuccess={loadInfluencers}
+        />
+      )}
     </div>
   );
 };

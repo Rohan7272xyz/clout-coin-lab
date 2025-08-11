@@ -285,12 +285,12 @@ const CoinDetail = () => {
                 Retry
               </Button>
               <Button 
-                onClick={() => navigate('/influencers')} 
+                onClick={() => navigate(-1)} 
                 variant="outline"
                 className="border-zinc-700 hover:border-primary/50"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Influencers
+                Back
               </Button>
             </div>
           </div>
@@ -311,9 +311,9 @@ const CoinDetail = () => {
             <p className="text-gray-400 mb-4">
               The token "{id}" could not be found or is not available.
             </p>
-            <Button onClick={() => navigate('/influencers')} className="bg-primary hover:bg-primary/90 text-black">
+            <Button onClick={() => navigate(-1)} className="bg-primary hover:bg-primary/90 text-black">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Influencers
+              Back
             </Button>
           </div>
         </div>
@@ -326,11 +326,22 @@ const CoinDetail = () => {
       <Header />
       
       <div className="pt-20">
-        {/* Breadcrumb */}
+        {/* Breadcrumb - UPDATED WITH BACK BUTTON */}
         <div className="px-4 py-2 border-b border-zinc-800">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="text-sm text-gray-400">
-              CoinFluence · Live Quote · USD
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(-1)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <div className="text-sm text-gray-400">
+                CoinFluence · Live Quote · USD
+              </div>
             </div>
             {/* Show data source info */}
             <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -778,7 +789,7 @@ const CoinDetail = () => {
                       <div className="text-green-400">{item.change}</div>
                     </div>
                   </div>
-                ))}
+                </div>
               </CardContent>
             </Card>
           </div>
