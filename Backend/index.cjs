@@ -27,6 +27,7 @@ const testRoutes = require('./routes/testRoutes');
 const pledgeRoutes = require('./routes/pledgeRoutes');
 const userStatusRoutes = require('./routes/userStatusRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const adminDashboardRoutes = require('./routes/adminDashboardRoutes');
 
 // NEW: Phase 2C Production Analytics API Routes
 const quotesRoutes = require('./routes/quotesRoutes');
@@ -52,6 +53,7 @@ app.use('/api/test', testRoutes);
 app.use('/api/pledge', pledgeRoutes);
 app.use('/api/status', userStatusRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/dashboard/admin', adminDashboardRoutes);
 
 // NEW: Phase 2C Production Analytics Routes
 app.use('/api/quotes', quotesRoutes);      // Real-time quotes API
@@ -70,6 +72,7 @@ app.get('/', (req, res) => {
       pledge: '/api/pledge',
       status: '/api/status',
       dashboard: '/api/dashboard',
+      adminDashboard: '/api/dashboard/admin',
       // NEW: Phase 2C Analytics endpoints
       quotes: '/api/quotes',
       chart: '/api/chart',
@@ -140,6 +143,7 @@ app.listen(PORT, () => {
   console.log(`🔗 API endpoints available at http://localhost:${PORT}/api`);
   console.log(`🚀 Firebase Admin SDK status: initialized`);
   console.log(`📈 Dashboard routes enabled at http://localhost:${PORT}/api/dashboard`);
+  console.log(`👑 Admin dashboard routes enabled at http://localhost:${PORT}/api/dashboard/admin`);
   console.log(`📊 Phase 2C Analytics API routes enabled:`);
   console.log(`   💹 Quotes: http://localhost:${PORT}/api/quotes`);
   console.log(`   📈 Charts: http://localhost:${PORT}/api/chart`);

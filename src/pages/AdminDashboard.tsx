@@ -17,7 +17,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Header from '@/components/ui/header';
-import DynamicInfluencerCard, { CardState } from '@/components/ui/dynamic-influencer-card';
+// Change this line in AdminDashboard.tsx
+import DynamicInfluencerCard, { CardState } from '../components/ui/dynamic-influencer-card';
 import { useAdminDashboard } from '@/lib/dashboard/dashboardAPI';
 import { toast } from '@/components/ui/sonner';
 import { useAccount, useWriteContract, useReadContract, useWaitForTransactionReceipt } from "wagmi";
@@ -189,7 +190,7 @@ const AdminDashboard = () => {
       setLoading(true);
       const token = await user?.getIdToken();
       
-      const response = await fetch('/api/dashboard/admin/influencers', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/dashboard/admin/influencers`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
