@@ -1,7 +1,7 @@
-// src/pages/AdminDashboard.tsx - Phase 4A: Clean Feature Separation
+// src/pages/AdminDashboard.tsx - Phase 4B: Real Token Deployment Integration
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { Users, TrendingUp, DollarSign, Star, AlertCircle, RefreshCw, Plus, Eye, Edit, Trash2, CheckCircle, XCircle, Rocket } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, Star, AlertCircle, RefreshCw, Plus, Eye, Edit, Trash2, CheckCircle, XCircle, Rocket, Network } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -67,13 +67,14 @@ interface NewInfluencerForm {
   pledgeThresholdUSDC: number;
 }
 
-// NEW: Token Deployment Form (wallet + token details)
+// UPDATED: Token Deployment Form with Network Selection
 interface TokenDeploymentForm {
   influencerId: string;
   walletAddress: string;
   tokenName: string;
   tokenSymbol: string;
   totalSupply: number;
+  network: 'base-sepolia' | 'base'; // Network selection for real blockchain
 }
 
 // Data transformation helper function (updated for optional wallet)
@@ -164,13 +165,14 @@ const AdminDashboard = () => {
     pledgeThresholdUSDC: 0
   });
 
-  // NEW: Token deployment form
+  // UPDATED: Token deployment form with network selection
   const [tokenDeployment, setTokenDeployment] = useState<TokenDeploymentForm>({
     influencerId: '',
     walletAddress: '',
     tokenName: '',
     tokenSymbol: '',
-    totalSupply: 1000000
+    totalSupply: 1000000,
+    network: 'base-sepolia' // Default to testnet for real testing
   });
 
   // API helper function
@@ -276,7 +278,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // NEW: Deploy token for specific influencer
+  // FIXED: Deploy token for specific influencer with REAL deployment
   const deployTokenForInfluencer = async () => {
     if (!tokenDeployment.influencerId || !tokenDeployment.walletAddress || !tokenDeployment.tokenName || !tokenDeployment.tokenSymbol) {
       toast.error("All token deployment fields are required");
@@ -286,31 +288,31 @@ const AdminDashboard = () => {
     try {
       setDeployingToken(true);
       
-      // Mock token deployment - replace with actual blockchain deployment
-      const mockTxHash = `0x${Math.random().toString(16).substring(2)}${Date.now().toString(16)}`;
-      const mockTokenAddress = `0x${Math.random().toString(16).substring(2, 42)}`;
-      
-      const response = await apiCall(`/api/influencer/${tokenDeployment.influencerId}/create-token`, {
+      // Show network-specific message
+      const networkLabel = tokenDeployment.network === 'base' ? 'Base Mainnet' : 'Base Sepolia Testnet';
+      toast.info(`🚀 Deploying ${tokenDeployment.tokenSymbol} to ${networkLabel}...`);
+
+      // FIXED: Call real deployment API
+      const response = await apiCall(`/api/influencer/${tokenDeployment.influencerId}/deploy-real-token`, {
         method: 'POST',
         body: JSON.stringify({
           walletAddress: tokenDeployment.walletAddress,
           tokenName: tokenDeployment.tokenName,
           tokenSymbol: tokenDeployment.tokenSymbol,
           totalSupply: tokenDeployment.totalSupply,
-          tokenAddress: mockTokenAddress,
-          txHash: mockTxHash
+          network: tokenDeployment.network // Pass network selection
         })
       });
 
       if (response.success) {
-        // Update the influencer in the list
+        // Update the influencer in the list with REAL deployment data
         setInfluencers(prev => prev.map(inf => 
           inf.id === tokenDeployment.influencerId 
             ? { 
                 ...inf, 
                 isLaunched: true, 
                 cardState: 'live',
-                tokenAddress: mockTokenAddress,
+                tokenAddress: response.data.tokenAddress, // Real contract address
                 tokenName: tokenDeployment.tokenName,
                 tokenSymbol: tokenDeployment.tokenSymbol,
                 walletAddress: tokenDeployment.walletAddress,
@@ -325,10 +327,17 @@ const AdminDashboard = () => {
           walletAddress: '',
           tokenName: '',
           tokenSymbol: '',
-          totalSupply: 1000000
+          totalSupply: 1000000,
+          network: 'base-sepolia'
         });
         
-        toast.success(`🚀 Token ${tokenDeployment.tokenSymbol} deployed successfully!`);
+        // Success message with deployment details
+        toast.success(
+          `🎉 Token ${tokenDeployment.tokenSymbol} deployed successfully to ${networkLabel}!\n` +
+          `Contract: ${response.data.tokenAddress}\n` +
+          `TX Hash: ${response.data.txHash}`
+        );
+        
         await loadStats();
         setActiveTab('influencers'); // Switch to see results
       } else {
@@ -336,7 +345,26 @@ const AdminDashboard = () => {
       }
     } catch (error: any) {
       console.error('Error deploying token:', error);
-      toast.error(error.message || 'Failed to deploy token');
+      
+      // Enhanced error handling for common blockchain deployment issues
+      if (error.message.includes('insufficient funds')) {
+        if (tokenDeployment.network === 'base') {
+          toast.error(
+            '💰 Insufficient Base ETH! You need real ETH to deploy on mainnet.\n' +
+            'This will cost real money. Consider using Base Sepolia testnet first.'
+          );
+        } else {
+          toast.error(
+            '💰 Insufficient Base Sepolia ETH! Get free testnet ETH from:\n' +
+            '• https://www.alchemy.com/faucets/base-sepolia\n' +
+            '• https://www.coinbase.com/faucets/base-sepolia-faucet'
+          );
+        }
+      } else if (error.message.includes('network')) {
+        toast.error(`Network error: Check your ${tokenDeployment.network} connection`);
+      } else {
+        toast.error(error.message || 'Failed to deploy token');
+      }
     } finally {
       setDeployingToken(false);
     }
@@ -441,6 +469,18 @@ const AdminDashboard = () => {
     return num.toFixed(decimals);
   };
 
+  // Network badge helper
+  const getNetworkBadge = (network: string) => {
+    switch (network) {
+      case 'base-sepolia':
+        return <Badge className="bg-orange-500 text-white"><Network className="w-3 h-3 mr-1" />Base Sepolia</Badge>;
+      case 'base':
+        return <Badge className="bg-green-500 text-white"><Network className="w-3 h-3 mr-1" />Base Mainnet</Badge>;
+      default:
+        return <Badge className="bg-gray-500 text-white"><Network className="w-3 h-3 mr-1" />Unknown</Badge>;
+    }
+  };
+
   // Check access permissions
   if (databaseUser?.status !== 'admin') {
     return (
@@ -488,7 +528,7 @@ const AdminDashboard = () => {
               </div>
               <p className="text-gray-400">Welcome back, {databaseUser?.display_name || 'Admin'}</p>
               <p className="text-xs text-green-400 mt-1">
-                ✅ Phase 4A: Separated influencer card creation from token deployment
+                ✅ Phase 4B: Real token deployment with network selection enabled
               </p>
             </div>
             <div className="text-right">
@@ -508,11 +548,11 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Phase 4A Success Message */}
+        {/* Phase 4B Success Message */}
         <Alert className="border-green-500/20 bg-green-500/5 mb-8">
           <TrendingUp className="h-4 w-4 text-green-400" />
           <AlertDescription className="text-green-400">
-            ✅ Phase 4A Complete: Influencer card creation and token deployment are now separate workflows
+            🚀 Phase 4B: Real blockchain deployment now integrated! Choose Local (instant testing) or Base Sepolia (real testnet).
           </AlertDescription>
         </Alert>
 
@@ -607,7 +647,7 @@ const AdminDashboard = () => {
               <Card className="bg-zinc-900 border-zinc-800">
                 <CardHeader>
                   <CardTitle>🚀 Token Deployment</CardTitle>
-                  <CardDescription>Blockchain tokens with trading capabilities</CardDescription>
+                  <CardDescription>Real blockchain tokens with trading capabilities</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -616,12 +656,15 @@ const AdminDashboard = () => {
                       <span className="text-green-400 font-medium">{stats.activeTokens}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Total Volume:</span>
-                      <span className="text-primary font-medium">{formatNumber(stats.totalEthRaised * 2000)} USD</span>
+                      <span className="text-gray-400">Networks Available:</span>
+                      <div className="flex gap-1">
+                        {getNetworkBadge('base-sepolia')}
+                        {getNetworkBadge('base')}
+                      </div>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Ready for Deployment:</span>
-                      <span className="text-yellow-400 font-medium">{stats.pendingApprovals}</span>
+                      <span className="text-yellow-400 font-medium">{stats.totalInfluencers - stats.activeTokens}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -868,7 +911,7 @@ const AdminDashboard = () => {
                 <Alert className="border-orange-500/20 bg-orange-500/5">
                   <Rocket className="h-4 w-4 text-orange-400" />
                   <AlertDescription className="text-orange-400">
-                    This deploys a real token to the blockchain. Requires wallet address and token details.
+                    Deploy to real blockchain: Base Sepolia (free testnet) or Base Mainnet (costs real ETH).
                   </AlertDescription>
                 </Alert>
 
@@ -888,6 +931,34 @@ const AdminDashboard = () => {
                             {influencer.name} (@{influencer.handle})
                           </SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Deployment Network *</label>
+                    <Select 
+                      value={tokenDeployment.network} 
+                      onValueChange={(value) => setTokenDeployment({...tokenDeployment, network: value as 'base-sepolia' | 'base'})}
+                    >
+                      <SelectTrigger className="bg-zinc-800 border-zinc-700">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-zinc-800 border-zinc-700">
+                        <SelectItem value="base-sepolia">
+                          <div className="flex items-center gap-2">
+                            <Network className="w-4 h-4 text-orange-400" />
+                            <span>Base Sepolia</span>
+                            <Badge className="bg-orange-500/20 text-orange-400 text-xs">FREE TESTNET</Badge>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="base">
+                          <div className="flex items-center gap-2">
+                            <Network className="w-4 h-4 text-green-400" />
+                            <span>Base Mainnet</span>
+                            <Badge className="bg-green-500/20 text-green-400 text-xs">REAL ETH 💰</Badge>
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -934,6 +1005,29 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
+                {/* Network Info */}
+                <div className="bg-zinc-800 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                    <Network className="w-4 h-4" />
+                    Network Information
+                  </h4>
+                  {tokenDeployment.network === 'base-sepolia' ? (
+                    <div className="text-sm text-gray-300 space-y-1">
+                      <p>• <span className="text-orange-400">Base Sepolia Testnet</span> - Real blockchain experience</p>
+                      <p>• Requires testnet ETH (free from faucets)</p>
+                      <p>• Users can interact with real wallets</p>
+                      <p>• <a href="https://www.alchemy.com/faucets/base-sepolia" target="_blank" className="text-primary hover:underline">Get free testnet ETH →</a></p>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-300 space-y-1">
+                      <p>• <span className="text-green-400">Base Mainnet</span> - Production blockchain with real value</p>
+                      <p>• <span className="text-red-400 font-semibold">⚠️ COSTS REAL ETH</span> - This will charge your wallet</p>
+                      <p>• Permanent deployment, cannot be undone</p>
+                      <p>• <span className="text-yellow-400">Recommended:</span> Test on Base Sepolia first</p>
+                    </div>
+                  )}
+                </div>
+
                 <Button 
                   onClick={deployTokenForInfluencer}
                   className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold"
@@ -942,18 +1036,18 @@ const AdminDashboard = () => {
                   {deployingToken ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                      Deploying to Blockchain...
+                      Deploying to {tokenDeployment.network === 'base' ? 'Base Mainnet' : 'Base Sepolia'}...
                     </>
                   ) : (
                     <>
                       <Rocket className="w-4 h-4 mr-2" />
-                      Deploy Token to Blockchain
+                      Deploy Token to {tokenDeployment.network === 'base' ? 'Base Mainnet 💰' : 'Base Sepolia (Free)'}
                     </>
                   )}
                 </Button>
                 
                 <p className="text-xs text-gray-500 text-center mt-2">
-                  This creates a real ERC-20 token on the blockchain. The influencer card will be updated to show "Live" status.
+                  This creates a real ERC-20 token on the selected blockchain. The influencer card will be updated to show "Live" status.
                 </p>
               </CardContent>
             </Card>
