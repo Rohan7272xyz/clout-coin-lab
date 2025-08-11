@@ -1,15 +1,23 @@
-// src/pages/AdminDashboard.tsx - Updated with Token Factory integration
+// src/pages/AdminDashboard.tsx - Revamped with complete token creation workflow
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { Crown, Users, Coins, TrendingUp, AlertTriangle, CheckCircle, XCircle, Eye, DollarSign, Activity, RefreshCw, Plus, ExternalLink, Copy, Loader2 } from 'lucide-react';
+import { 
+  Crown, Users, Coins, TrendingUp, AlertTriangle, CheckCircle, XCircle, 
+  Eye, DollarSign, Activity, RefreshCw, Plus, ExternalLink, Copy, 
+  Loader2, Rocket, Target, Clock, Zap, Edit, Trash2
+} from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Header from '@/components/ui/header';
+import DynamicInfluencerCard, { CardState } from '@/components/ui/dynamic-influencer-card';
 import { useAdminDashboard } from '@/lib/dashboard/dashboardAPI';
 import { toast } from '@/components/ui/sonner';
 import { useAccount, useWriteContract, useReadContract, useWaitForTransactionReceipt } from "wagmi";
@@ -18,7 +26,6 @@ import { baseSepolia } from 'wagmi/chains';
 
 // Token Factory Contract Configuration
 const TOKEN_FACTORY_ADDRESS = "0x18594f5d4761b9DBEA625dDeD86356F6D346A09a" as `0x${string}`;
-
 const TOKEN_FACTORY_ABI = [
   {
     "inputs": [
@@ -44,77 +51,114 @@ const TOKEN_FACTORY_ABI = [
     ],
     "stateMutability": "view",
     "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getAllCoins",
-    "outputs": [{ "internalType": "address[]", "name": "", "type": "address[]" }],
-    "stateMutability": "view",
-    "type": "function"
   }
 ] as const;
 
-interface PendingApproval {
+interface AdminInfluencer {
   id: string;
-  type: string;
   name: string;
-  details: string;
-  requestedAt: string;
-  requestedBy: string;
-  progress?: number;
+  handle: string;
+  email: string;
+  walletAddress: string;
+  category: string;
+  description: string;
+  avatar: string;
+  verified: boolean;
+  followers: number;
+  tokenName: string;
+  tokenSymbol: string;
+  tokenAddress?: string;
+  tokenId?: number;
+  pledgeThresholdETH: number;
+  pledgeThresholdUSDC: number;
+  totalPledgedETH: number;
+  totalPledgedUSDC: number;
+  pledgeCount: number;
+  status: string;
+  cardState: CardState;
+  isApproved: boolean;
+  isLaunched: boolean;
+  launchedAt?: string;
+  ethProgress: number;
+  usdcProgress: number;
+  overallProgress: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface AdminStats {
-  totalUsers: number;
-  totalInfluencers: number;
-  totalTokens: number;
-  totalVolume: number;
-  totalFees: number;
-  pendingApprovals: number;
-  activeUsers24h: number;
-  newUsersToday: number;
-  approvedInfluencers: number;
-  totalPledgers: number;
-  totalEthPledged: number;
-  totalUsdcPledged: number;
+interface NewInfluencerForm {
+  name: string;
+  handle: string;
+  email: string;
+  walletAddress: string;
+  category: string;
+  description: string;
+  followers: string;
+  pledgeThresholdETH: string;
+  pledgeThresholdUSDC: string;
+  tokenName: string;
+  tokenSymbol: string;
+  verified: boolean;
 }
 
-interface CreatedCoin {
-  address: string;
-  name: string;
-  symbol: string;
-  influencerName: string;
-  influencerWallet: string;
-  totalSupply: string;
-  launchTime: number;
-  txHash?: string;
-}
+const CATEGORIES = [
+  'Cryptocurrency & Blockchain',
+  'Technology & Innovation', 
+  'Fitness & Wellness',
+  'Entertainment & Media',
+  'Business & Finance',
+  'Gaming & Esports',
+  'Fashion & Lifestyle',
+  'Education & Learning',
+  'Food & Cooking',
+  'Travel & Adventure',
+  'Art & Design',
+  'Music & Audio',
+  'Sports & Athletics',
+  'Science & Research',
+  'Politics & Current Events'
+];
 
 const AdminDashboard = () => {
-  const { databaseUser } = useAuth();
+  const { databaseUser, user } = useAuth(); // Add 'user' (Firebase user)
   const { address, isConnected } = useAccount();
   const [activeTab, setActiveTab] = useState('overview');
   
-  // Token Factory state
-  const [showTokenFactory, setShowTokenFactory] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    symbol: "",
-    influencerName: "",
-    influencerWallet: "",
-    totalSupply: "1000000"
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [createdCoins, setCreatedCoins] = useState<CreatedCoin[]>([]);
-  const [lastCreatedCoin, setLastCreatedCoin] = useState<CreatedCoin | null>(null);
+  // State for influencer management
+  const [influencers, setInfluencers] = useState<AdminInfluencer[]>([]);
+  const [selectedInfluencer, setSelectedInfluencer] = useState<AdminInfluencer | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   
-  // Use the real database integration hook
+  // New influencer form
+  const [newInfluencerForm, setNewInfluencerForm] = useState<NewInfluencerForm>({
+    name: '',
+    handle: '',
+    email: '',
+    walletAddress: '',
+    category: '',
+    description: '',
+    followers: '',
+    pledgeThresholdETH: '',
+    pledgeThresholdUSDC: '',
+    tokenName: '',
+    tokenSymbol: '',
+    verified: false
+  });
+
+  // Token creation state
+  const [tokenCreationData, setTokenCreationData] = useState<any>(null);
+  
+  // Use the existing dashboard hook for stats
   const {
     stats,
     pendingApprovals,
-    loading,
-    error,
-    refreshData,
+    loading: statsLoading,
+    error: statsError,
+    refreshData: refreshStats,
     processApproval
   } = useAdminDashboard();
 
@@ -123,12 +167,6 @@ const AdminDashboard = () => {
     address: TOKEN_FACTORY_ADDRESS,
     abi: TOKEN_FACTORY_ABI,
     functionName: 'getFactoryInfo',
-  });
-
-  const { data: allCoinsAddresses } = useReadContract({
-    address: TOKEN_FACTORY_ADDRESS,
-    abi: TOKEN_FACTORY_ABI,
-    functionName: 'getAllCoins',
   });
 
   const { 
@@ -145,74 +183,179 @@ const AdminDashboard = () => {
     hash: createCoinData,
   });
 
-  // Load created coins when addresses change
-  useEffect(() => {
-    if (allCoinsAddresses && allCoinsAddresses.length > 0) {
-      loadCoinsData(allCoinsAddresses);
-    }
-  }, [allCoinsAddresses]);
-
-  const loadCoinsData = async (addresses: readonly `0x${string}`[]) => {
-    // For now using mock data - you can implement actual contract calls here
-    const mockCoins: CreatedCoin[] = addresses.map((addr, index) => ({
-      address: addr,
-      name: `Token ${index + 1}`,
-      symbol: `TK${index + 1}`,
-      influencerName: `Influencer ${index + 1}`,
-      influencerWallet: addr,
-      totalSupply: "1000000",
-      launchTime: Date.now() - (index * 86400000)
-    }));
-    setCreatedCoins(mockCoins);
-  };
-
-  // Handle approval action
-  const handleApproval = async (id: string, approved: boolean) => {
+  // Fetch influencers data
+  const fetchInfluencers = async () => {
     try {
-      await processApproval(id, approved);
-      toast.success(`Influencer ${approved ? 'approved' : 'rejected'} successfully`);
+      setLoading(true);
+      const token = await user?.getIdToken();
+      
+      const response = await fetch('/api/dashboard/admin/influencers', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch influencers');
+      
+      const result = await response.json();
+      setInfluencers(result.data || []);
+      
     } catch (error) {
-      toast.error(`Failed to ${approved ? 'approve' : 'reject'} influencer`);
-      console.error('Approval error:', error);
+      console.error('Error fetching influencers:', error);
+      toast.error('Failed to load influencers');
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Refresh all data
   const handleRefresh = async () => {
+    setRefreshing(true);
     try {
-      await refreshData();
-      toast.success('Dashboard data refreshed');
+      await Promise.all([
+        fetchInfluencers(),
+        refreshStats()
+      ]);
+      toast.success('Dashboard refreshed');
     } catch (error) {
-      toast.error('Failed to refresh data');
+      toast.error('Failed to refresh dashboard');
+    } finally {
+      setRefreshing(false);
     }
   };
 
-  // Token Factory validation
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-    
-    if (!formData.name.trim()) newErrors.name = "Coin name is required";
-    if (!formData.symbol.trim()) newErrors.symbol = "Symbol is required";
-    if (formData.symbol.length > 5) newErrors.symbol = "Symbol must be 5 characters or less";
-    if (!formData.influencerName.trim()) newErrors.influencerName = "Influencer name is required";
-    if (!formData.influencerWallet.match(/^0x[a-fA-F0-9]{40}$/)) {
-      newErrors.influencerWallet = "Invalid Ethereum address";
+  // Load data on mount
+  useEffect(() => {
+    if (databaseUser?.status === 'admin') {
+      fetchInfluencers();
     }
-    if (!formData.totalSupply || parseInt(formData.totalSupply) <= 0) {
-      newErrors.totalSupply = "Total supply must be positive";
-    }
+  }, [databaseUser]);
+
+  // Handle form changes
+  const handleFormChange = (field: keyof NewInfluencerForm, value: string | boolean) => {
+    setNewInfluencerForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
     
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    // Auto-generate token symbol from name
+    if (field === 'name' && typeof value === 'string') {
+      const symbol = value.substring(0, 5).toUpperCase().replace(/\s/g, '');
+      setNewInfluencerForm(prev => ({
+        ...prev,
+        tokenSymbol: symbol,
+        tokenName: `${value} Token`
+      }));
+    }
   };
 
-  // Handle token creation
-  const handleCreateCoin = async () => {
-    if (!validateForm()) return;
-    if (!isConnected) {
-      toast.error("Please connect your wallet first");
+  // Create new influencer
+  const handleCreateInfluencer = async () => {
+    try {
+      const token = await user?.getIdToken();
+      
+      const response = await fetch('/api/dashboard/admin/influencers', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: newInfluencerForm.name,
+          handle: newInfluencerForm.handle,
+          email: newInfluencerForm.email,
+          walletAddress: newInfluencerForm.walletAddress,
+          category: newInfluencerForm.category,
+          description: newInfluencerForm.description,
+          followers: parseInt(newInfluencerForm.followers) || 0,
+          pledgeThresholdETH: parseFloat(newInfluencerForm.pledgeThresholdETH) || 0,
+          pledgeThresholdUSDC: parseFloat(newInfluencerForm.pledgeThresholdUSDC) || 0,
+          tokenName: newInfluencerForm.tokenName,
+          tokenSymbol: newInfluencerForm.tokenSymbol,
+          verified: newInfluencerForm.verified
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create influencer');
+      }
+      
+      toast.success('Influencer created successfully');
+      setShowCreateModal(false);
+      setNewInfluencerForm({
+        name: '', handle: '', email: '', walletAddress: '', category: '', 
+        description: '', followers: '', pledgeThresholdETH: '', pledgeThresholdUSDC: '',
+        tokenName: '', tokenSymbol: '', verified: false
+      });
+      fetchInfluencers();
+      
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create influencer');
+    }
+  };
+
+  // Approve influencer
+  const handleApproveInfluencer = async (influencerId: string) => {
+    try {
+      const token = await user?.getIdToken();
+      
+      const response = await fetch(`/api/dashboard/admin/influencers/${influencerId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to approve influencer');
+      }
+      
+      toast.success('Influencer approved successfully');
+      fetchInfluencers();
+      
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to approve influencer');
+    }
+  };
+
+  // Prepare token creation
+  const handlePrepareTokenCreation = async (influencer: AdminInfluencer) => {
+    try {
+      const token = await user?.getIdToken();
+      
+      const response = await fetch(`/api/dashboard/admin/influencers/${influencer.id}/token-data`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to get token data');
+      }
+      
+      const result = await response.json();
+      setTokenCreationData(result.data);
+      setSelectedInfluencer(influencer);
+      setShowTokenModal(true);
+      
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to prepare token creation');
+    }
+  };
+
+  // Handle blockchain token creation
+  const handleCreateToken = async () => {
+    if (!tokenCreationData || !isConnected) {
+      toast.error('Please connect your wallet first');
       return;
     }
-  
+
     try {
       const creationFee = factoryInfo?.[2] || parseEther("0.01");
       
@@ -221,11 +364,11 @@ const AdminDashboard = () => {
         abi: TOKEN_FACTORY_ABI,
         functionName: 'createCoin',
         args: [
-          formData.name,
-          formData.symbol,
-          formData.influencerName,
-          formData.influencerWallet as `0x${string}`,
-          BigInt(formData.totalSupply)
+          tokenCreationData.name,
+          tokenCreationData.symbol,
+          tokenCreationData.influencerName,
+          tokenCreationData.influencerWallet as `0x${string}`,
+          BigInt(tokenCreationData.totalSupply)
         ],
         value: creationFee,
         account: address,
@@ -235,86 +378,114 @@ const AdminDashboard = () => {
       toast.success("Transaction submitted! Waiting for confirmation...");
       
     } catch (error: any) {
-      console.error("Error creating coin:", error);
-      
-      // Check if it's a network error and suggest switching
-      if (error.message?.includes('chain') || error.message?.includes('network')) {
-        toast.error("Please switch to Base Sepolia network in your wallet");
-      } else {
-        toast.error(error.message || "Failed to create token");
-      }
+      console.error("Error creating token:", error);
+      toast.error(error.message || "Failed to create token");
     }
   };
 
-  // Handle successful transaction
+  // Handle successful token creation
   useEffect(() => {
-    if (isTransactionSuccess && createCoinData) {
-      const newCoin: CreatedCoin = {
-        address: "0x...", // Would get from transaction logs
-        name: formData.name,
-        symbol: formData.symbol,
-        influencerName: formData.influencerName,
-        influencerWallet: formData.influencerWallet,
-        totalSupply: formData.totalSupply,
-        launchTime: Date.now(),
-        txHash: createCoinData
+    if (isTransactionSuccess && createCoinData && tokenCreationData && selectedInfluencer) {
+      // Call backend to sync token creation with database
+      const syncTokenCreation = async () => {
+        try {
+          const token = await user?.getIdToken();
+          
+          const response = await fetch(`/api/dashboard/admin/influencers/${selectedInfluencer.id}/create-token`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              tokenAddress: "0x...", // Would extract from transaction logs
+              txHash: createCoinData
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to sync token creation');
+          }
+          
+          toast.success(`Token ${tokenCreationData.symbol} created successfully!`);
+          setShowTokenModal(false);
+          setTokenCreationData(null);
+          setSelectedInfluencer(null);
+          fetchInfluencers();
+          
+        } catch (error: any) {
+          toast.error(error.message || 'Token created but failed to sync with database');
+        }
       };
       
-      setLastCreatedCoin(newCoin);
-      setCreatedCoins(prev => [newCoin, ...prev]);
-      
-      toast.success(`Successfully created ${formData.name} (${formData.symbol})!`);
-      
-      // Reset form
-      setFormData({
-        name: "",
-        symbol: "",
-        influencerName: "",
-        influencerWallet: "",
-        totalSupply: "1000000"
-      });
-      setShowTokenFactory(false);
+      syncTokenCreation();
     }
-  }, [isTransactionSuccess, createCoinData, formData]);
+  }, [isTransactionSuccess, createCoinData, tokenCreationData, selectedInfluencer]);
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard!");
+  // Get state-based actions for influencer
+  const getInfluencerActions = (influencer: AdminInfluencer) => {
+    const actions = [];
+    
+    switch (influencer.cardState) {
+      case 'threshold_met':
+        if (!influencer.isApproved) {
+          actions.push({
+            label: 'Approve',
+            icon: CheckCircle,
+            onClick: () => handleApproveInfluencer(influencer.id),
+            className: 'bg-green-500 hover:bg-green-600 text-white'
+          });
+        }
+        break;
+        
+      case 'ready_for_launch':
+        actions.push({
+          label: 'Create Token',
+          icon: Rocket,
+          onClick: () => handlePrepareTokenCreation(influencer),
+          className: 'bg-blue-500 hover:bg-blue-600 text-white'
+        });
+        break;
+        
+      case 'live':
+        actions.push({
+          label: 'View Token',
+          icon: Eye,
+          onClick: () => window.open(`/coin/${influencer.name.toLowerCase().replace(/\s+/g, '')}`, '_blank'),
+          className: 'bg-primary hover:bg-primary/90 text-black'
+        });
+        break;
+    }
+    
+    // Always add edit action
+    actions.push({
+      label: 'Edit',
+      icon: Edit,
+      onClick: () => {
+        setSelectedInfluencer(influencer);
+        setShowEditModal(true);
+      },
+      className: 'bg-gray-600 hover:bg-gray-700 text-white'
+    });
+    
+    return actions;
   };
 
-  const openEtherscan = (address: string) => {
-    window.open(`https://sepolia.basescan.org/address/${address}`, '_blank');
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      browser: { color: 'bg-gray-500', text: 'Browser' },
-      investor: { color: 'bg-blue-500', text: 'Investor' },
-      influencer: { color: 'bg-purple-500', text: 'Influencer' },
-      admin: { color: 'bg-red-500', text: 'Admin' },
-      pending: { color: 'bg-yellow-500', text: 'Pending' },
-      approved: { color: 'bg-green-500', text: 'Approved' },
-      rejected: { color: 'bg-red-500', text: 'Rejected' },
-      live: { color: 'bg-emerald-500', text: 'Live' },
-      pledging: { color: 'bg-blue-500', text: 'Pledging' }
+  const getStatusBadge = (cardState: CardState) => {
+    const configs = {
+      live: { color: 'bg-green-500', text: 'Live' },
+      ready_for_launch: { color: 'bg-blue-500', text: 'Ready for Launch' },
+      approved: { color: 'bg-purple-500', text: 'Approved' },
+      threshold_met: { color: 'bg-yellow-500', text: 'Threshold Met' },
+      pledging: { color: 'bg-orange-500', text: 'Pledging' },
+      pending: { color: 'bg-gray-500', text: 'Pending' }
     };
-
-    const config = statusConfig[status as keyof typeof statusConfig] || { color: 'bg-gray-500', text: status };
+    
+    const config = configs[cardState] || configs.pending;
     return <Badge className={`${config.color} text-white`}>{config.text}</Badge>;
   };
 
-  const formatCurrency = (amount: number, decimals = 2) => {
-    if (amount >= 1000000) return `$${(amount / 1000000).toFixed(decimals)}M`;
-    if (amount >= 1000) return `$${(amount / 1000).toFixed(decimals)}K`;
-    return `$${amount.toFixed(decimals)}`;
-  };
-
-  const formatEth = (amount: number, decimals = 3) => {
-    return `${amount.toFixed(decimals)} ETH`;
-  };
-
-  // Error state
-  if (error) {
+  if (statsError) {
     return (
       <div className="min-h-screen bg-black">
         <Header />
@@ -322,7 +493,7 @@ const AdminDashboard = () => {
           <Card className="bg-zinc-900 border-zinc-800 max-w-md">
             <CardHeader className="text-center">
               <CardTitle className="text-red-400">Error Loading Dashboard</CardTitle>
-              <CardDescription>{error}</CardDescription>
+              <CardDescription>{statsError}</CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <Button onClick={handleRefresh} className="bg-primary hover:bg-primary/90 text-black">
@@ -336,28 +507,12 @@ const AdminDashboard = () => {
     );
   }
 
-  // Loading state
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black">
-        <Header />
-        <div className="flex items-center justify-center min-h-[calc(100vh-80px)] pt-20">
-          <div className="text-center">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-400">Loading admin dashboard...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-black text-white">
       <Header />
       
-      {/* Dashboard Content with proper spacing for header */}
       <div className="pt-20 p-6">
-        {/* Header */}
+        {/* Dashboard Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
@@ -371,31 +526,21 @@ const AdminDashboard = () => {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <Button onClick={handleRefresh} variant="outline" size="sm" className="border-zinc-700 hover:border-primary/50">
-                <RefreshCw className="w-4 h-4 mr-2" />
+              <Button 
+                onClick={handleRefresh} 
+                variant="outline" 
+                size="sm" 
+                className="border-zinc-700 hover:border-primary/50"
+                disabled={refreshing}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
             </div>
           </div>
         </div>
 
-        {/* Success Alert for Token Creation */}
-        {lastCreatedCoin && (
-          <Alert className="mb-8 border-primary/20 bg-primary/5">
-            <CheckCircle className="h-4 w-4 text-primary" />
-            <AlertDescription className="text-primary">
-              Successfully created {lastCreatedCoin.name} ({lastCreatedCoin.symbol})!{" "}
-              <button 
-                onClick={() => openEtherscan(lastCreatedCoin.address)}
-                className="underline hover:no-underline"
-              >
-                View on BaseScan
-              </button>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Stats Overview - Using real data from database */}
+        {/* Stats Overview */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card className="bg-zinc-900 border-zinc-800">
@@ -405,9 +550,7 @@ const AdminDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-white">{stats.totalUsers}</div>
-                <p className="text-xs text-gray-500 mt-1">
-                  +{stats.newUsersToday} today
-                </p>
+                <p className="text-xs text-gray-500 mt-1">+{stats.newUsersToday} today</p>
               </CardContent>
             </Card>
 
@@ -418,9 +561,7 @@ const AdminDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-white">{stats.totalInfluencers}</div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {stats.approvedInfluencers || 0} approved
-                </p>
+                <p className="text-xs text-gray-500 mt-1">{stats.approvedInfluencers || 0} approved</p>
               </CardContent>
             </Card>
 
@@ -431,66 +572,18 @@ const AdminDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-white">{stats.totalTokens}</div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Trading actively
-                </p>
+                <p className="text-xs text-gray-500 mt-1">Trading actively</p>
               </CardContent>
             </Card>
 
             <Card className="bg-zinc-900 border-zinc-800">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-400">Pending Approvals</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-400">Pending Actions</CardTitle>
                 <AlertTriangle className="h-4 w-4 text-yellow-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-white">{stats.pendingApprovals}</div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Awaiting review
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Additional Stats Row */}
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card className="bg-zinc-900 border-zinc-800">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-400">Platform Volume</CardTitle>
-                <DollarSign className="h-4 w-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-white">{formatCurrency(stats.totalVolume)}</div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {formatCurrency(stats.totalFees)} in fees
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-zinc-900 border-zinc-800">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-400">Total Pledged</CardTitle>
-                <Activity className="h-4 w-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-white">{formatEth(stats.totalEthPledged || 0)}</div>
-                <p className="text-xs text-gray-500 mt-1">
-                  From {stats.totalPledgers || 0} pledgers
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-zinc-900 border-zinc-800">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-400">Active Users (24h)</CardTitle>
-                <Users className="h-4 w-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-white">{stats.activeUsers24h}</div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Platform engagement
-                </p>
+                <p className="text-xs text-gray-500 mt-1">Awaiting review</p>
               </CardContent>
             </Card>
           </div>
@@ -500,434 +593,444 @@ const AdminDashboard = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-zinc-900 border-zinc-800">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="approvals">
-              Pending Approvals 
-              {pendingApprovals && pendingApprovals.length > 0 && (
-                <Badge className="ml-2 bg-yellow-500 text-black text-xs">
-                  {pendingApprovals.length}
+            <TabsTrigger value="influencers">
+              Influencer Management
+              {influencers.length > 0 && (
+                <Badge className="ml-2 bg-primary/20 text-primary text-xs">
+                  {influencers.length}
                 </Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="token-factory">Token Factory</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="influencers">Influencers</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
+            {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Platform Health */}
               <Card className="bg-zinc-900 border-zinc-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="w-5 h-5" />
-                    Platform Health
-                  </CardTitle>
+                  <CardTitle>Influencer Card States</CardTitle>
+                  <CardDescription>Current status of all influencer cards</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">System Status</span>
-                      <Badge className="bg-green-500 text-white">Operational</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Database</span>
-                      <Badge className="bg-green-500 text-white">Connected</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">API Health</span>
-                      <Badge className="bg-green-500 text-white">Healthy</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Token Factory</span>
-                      <Badge className="bg-green-500 text-white">Ready</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Last Updated</span>
-                      <span className="text-white text-sm">{new Date().toLocaleTimeString()}</span>
-                    </div>
+                  <div className="space-y-3">
+                    {[
+                      { state: 'ready_for_launch', count: influencers.filter(i => i.cardState === 'ready_for_launch').length, label: 'Ready for Launch', color: 'text-blue-400' },
+                      { state: 'threshold_met', count: influencers.filter(i => i.cardState === 'threshold_met').length, label: 'Threshold Met', color: 'text-yellow-400' },
+                      { state: 'live', count: influencers.filter(i => i.cardState === 'live').length, label: 'Live Trading', color: 'text-green-400' },
+                      { state: 'pledging', count: influencers.filter(i => i.cardState === 'pledging').length, label: 'Accepting Pledges', color: 'text-orange-400' }
+                    ].map(item => (
+                      <div key={item.state} className="flex justify-between items-center">
+                        <span className="text-gray-400">{item.label}</span>
+                        <span className={`font-semibold ${item.color}`}>{item.count}</span>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Quick Actions */}
               <Card className="bg-zinc-900 border-zinc-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Crown className="w-5 h-5" />
-                    Quick Actions
-                  </CardTitle>
+                  <CardTitle>Quick Actions</CardTitle>
+                  <CardDescription>Common administrative tasks</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     <Button 
                       className="w-full justify-start bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30"
-                      onClick={() => setActiveTab('approvals')}
+                      onClick={() => setActiveTab('influencers')}
                     >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Review Pending Approvals ({pendingApprovals?.length || 0})
+                      <Users className="w-4 h-4 mr-2" />
+                      Manage Influencers ({influencers.length})
                     </Button>
                     <Button 
                       className="w-full justify-start bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/30"
+                      onClick={() => {
+                        setActiveTab('influencers');
+                        setShowCreateModal(true);
+                      }}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add New Influencer
+                    </Button>
+                    <Button 
+                      className="w-full justify-start bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30"
                       onClick={() => setActiveTab('token-factory')}
                     >
-                      <Coins className="w-4 h-4 mr-2" />
-                      Deploy New Token
-                    </Button>
-                    <Button 
-                      variant="outline"
-                      className="w-full justify-start border-zinc-700 hover:border-primary/50"
-                      onClick={() => setActiveTab('users')}
-                    >
-                      <Users className="w-4 h-4 mr-2" />
-                      Manage Users
+                      <Rocket className="w-4 h-4 mr-2" />
+                      Token Factory ({influencers.filter(i => i.cardState === 'ready_for_launch').length} ready)
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
-
-          <TabsContent value="approvals" className="space-y-6">
-            <Card className="bg-zinc-900 border-zinc-800">
-              <CardHeader>
-                <CardTitle>Pending Approvals</CardTitle>
-                <CardDescription>Review influencers who have met their pledge thresholds</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {pendingApprovals && pendingApprovals.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-zinc-800">
-                        <TableHead>Name</TableHead>
-                        <TableHead>Details</TableHead>
-                        <TableHead>Requested</TableHead>
-                        <TableHead>Progress</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {pendingApprovals.map((approval) => (
-                        <TableRow key={approval.id} className="border-zinc-800">
-                          <TableCell className="font-medium">{approval.name}</TableCell>
-                          <TableCell className="max-w-md">
-                            <div className="text-sm text-gray-400">
-                              {approval.details}
-                            </div>
-                          </TableCell>
-                          <TableCell>{new Date(approval.requestedAt).toLocaleDateString()}</TableCell>
-                          <TableCell>
-                            {approval.progress && (
-                              <div className="text-sm">
-                                <div className="text-primary font-medium">{approval.progress.toFixed(1)}%</div>
-                                <div className="text-gray-400 text-xs">of threshold</div>
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handleApproval(approval.id, true)}
-                                className="bg-green-500 hover:bg-green-600 text-white"
-                              >
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleApproval(approval.id, false)}
-                                className="border-red-500 text-red-400 hover:bg-red-500 hover:text-white"
-                              >
-                                <XCircle className="w-4 h-4 mr-1" />
-                                Reject
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <div className="text-center py-8 text-gray-400">
-                    <CheckCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p className="mb-2">No pending approvals</p>
-                    <p className="text-sm">All influencer requests have been processed</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="token-factory" className="space-y-6">
-            {/* Token Factory Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold">Token Factory</h2>
-                <p className="text-gray-400">Deploy new influencer tokens to the blockchain</p>
-                <div className="text-sm text-gray-500 mt-1">
-                  Contract: {TOKEN_FACTORY_ADDRESS}
-                </div>
-              </div>
-              <Button 
-                onClick={() => setShowTokenFactory(true)}
-                className="bg-primary hover:bg-primary/90 text-black font-semibold"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create New Token
-              </Button>
-            </div>
-
-            <div className="grid lg:grid-cols-2 gap-6">
-              {/* Token Creation Form */}
-              {showTokenFactory && (
-                <Card className="bg-zinc-900 border-zinc-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Plus className="w-5 h-5 text-primary" />
-                        Create New Token
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowTokenFactory(false)}
-                      >
-                        <XCircle className="w-4 h-4" />
-                      </Button>
-                    </CardTitle>
-                    <CardDescription>
-                      Deploy a new ERC-20 token with automatic allocation (30% influencer, 65% treasury, 5% platform)
-                    </CardDescription>
-                  </CardHeader>
-                  
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">Coin Name</label>
-                        <Input
-                          placeholder="Logan Paul Coin"
-                          value={formData.name}
-                          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                          className={errors.name ? 'border-red-500' : 'bg-zinc-800 border-zinc-700'}
-                        />
-                        {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
-                      </div>
-                      
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">Symbol</label>
-                        <Input
-                          placeholder="LOGAN"
-                          value={formData.symbol}
-                          onChange={(e) => setFormData(prev => ({ ...prev, symbol: e.target.value.toUpperCase() }))}
-                          maxLength={5}
-                          className={errors.symbol ? 'border-red-500' : 'bg-zinc-800 border-zinc-700'}
-                        />
-                        {errors.symbol && <p className="text-red-400 text-xs mt-1">{errors.symbol}</p>}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Influencer Name</label>
-                      <Input
-                        placeholder="Logan Paul"
-                        value={formData.influencerName}
-                        onChange={(e) => setFormData(prev => ({ ...prev, influencerName: e.target.value }))}
-                        className={errors.influencerName ? 'border-red-500' : 'bg-zinc-800 border-zinc-700'}
-                      />
-                      {errors.influencerName && <p className="text-red-400 text-xs mt-1">{errors.influencerName}</p>}
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Influencer Wallet Address</label>
-                      <Input
-                        placeholder="0xABC...123"
-                        value={formData.influencerWallet}
-                        onChange={(e) => setFormData(prev => ({ ...prev, influencerWallet: e.target.value }))}
-                        className={errors.influencerWallet ? 'border-red-500' : 'bg-zinc-800 border-zinc-700'}
-                      />
-                      {errors.influencerWallet && <p className="text-red-400 text-xs mt-1">{errors.influencerWallet}</p>}
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Total Supply</label>
-                      <Input
-                        type="number"
-                        placeholder="1000000"
-                        value={formData.totalSupply}
-                        onChange={(e) => setFormData(prev => ({ ...prev, totalSupply: e.target.value }))}
-                        className={errors.totalSupply ? 'border-red-500' : 'bg-zinc-800 border-zinc-700'}
-                      />
-                      {errors.totalSupply && <p className="text-red-400 text-xs mt-1">{errors.totalSupply}</p>}
-                    </div>
-
-                    {/* Allocation Preview */}
-                    <div className="bg-zinc-800 p-4 rounded-lg">
-                      <h4 className="text-sm font-semibold mb-2 text-primary">Token Allocation Preview</h4>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between">
-                          <span>Influencer (30%):</span>
-                          <span>{(parseInt(formData.totalSupply || "0") * 0.3).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Treasury (65%):</span>
-                          <span>{(parseInt(formData.totalSupply || "0") * 0.65).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Platform (5%):</span>
-                          <span>{(parseInt(formData.totalSupply || "0") * 0.05).toLocaleString()}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <Button 
-                      onClick={handleCreateCoin}
-                      disabled={isCreateCoinLoading || isTransactionLoading}
-                      className="w-full bg-primary hover:bg-primary/90 text-black font-semibold"
-                    >
-                      {(isCreateCoinLoading || isTransactionLoading) ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Creating Token...
-                        </>
-                      ) : (
-                        <>
-                          <Coins className="w-4 h-4 mr-2" />
-                          Create Token ({factoryInfo ? formatEther(factoryInfo[2]) : "0.01"} ETH fee)
-                        </>
-                      )}
-                    </Button>
-
-                    {createCoinError && (
-                      <Alert className="border-red-500/20 bg-red-500/5">
-                        <AlertTriangle className="h-4 w-4 text-red-400" />
-                        <AlertDescription className="text-red-400">
-                          Error: {createCoinError.message}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Created Tokens List */}
-              <Card className="bg-zinc-900 border-zinc-800">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Eye className="w-5 h-5 text-primary" />
-                    Created Tokens ({createdCoins.length})
-                  </CardTitle>
-                  <CardDescription>
-                    All influencer tokens created through this factory
-                  </CardDescription>
-                </CardHeader>
-                
-                <CardContent>
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
-                    {createdCoins.length === 0 ? (
-                      <div className="text-center py-8 text-gray-400">
-                        <Coins className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p className="mb-2">No tokens created yet</p>
-                        <p className="text-sm">Create your first influencer token!</p>
-                      </div>
-                    ) : (
-                      createdCoins.map((coin, index) => (
-                        <div key={index} className="border border-zinc-700 rounded-lg p-4 hover:border-primary/30 transition-colors">
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <h4 className="font-semibold text-white">{coin.name}</h4>
-                              <p className="text-sm text-gray-400">{coin.influencerName}</p>
-                            </div>
-                            <Badge className="bg-primary/20 text-primary border-primary/30">
-                              {coin.symbol}
-                            </Badge>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4 text-xs text-gray-400 mb-3">
-                            <div className="flex items-center gap-1">
-                              <DollarSign className="w-3 h-3" />
-                              <span>{parseInt(coin.totalSupply).toLocaleString()} supply</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Activity className="w-3 h-3" />
-                              <span>{new Date(coin.launchTime).toLocaleDateString()}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs border-zinc-600 hover:border-primary/50"
-                              onClick={() => copyToClipboard(coin.address)}
-                            >
-                              <Copy className="w-3 h-3 mr-1" />
-                              Copy Address
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs border-zinc-600 hover:border-primary/50"
-                              onClick={() => openEtherscan(coin.address)}
-                            >
-                              <ExternalLink className="w-3 h-3 mr-1" />
-                              BaseScan
-                            </Button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="users" className="space-y-6">
-            <Card className="bg-zinc-900 border-zinc-800">
-              <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>Manage user roles and permissions (Full user management coming soon)</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-gray-400">
-                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p className="mb-2">User management interface coming soon</p>
-                  <p className="text-sm">For now, user status changes can be made through the API</p>
-                  <div className="mt-4 text-xs bg-zinc-800 p-3 rounded-lg">
-                    <p className="text-white mb-1">Current user counts:</p>
-                    <p>Total Users: {stats?.totalUsers || 0}</p>
-                    <p>New Today: {stats?.newUsersToday || 0}</p>
-                    <p>Active 24h: {stats?.activeUsers24h || 0}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           <TabsContent value="influencers" className="space-y-6">
+            {/* Influencer Management Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold">Influencer Management</h2>
+                <p className="text-gray-400">Manage all influencers and their token states</p>
+              </div>
+              <Button 
+                onClick={() => setShowCreateModal(true)}
+                className="bg-primary hover:bg-primary/90 text-black font-semibold"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Influencer
+              </Button>
+            </div>
+
+            {/* Influencer Cards Grid */}
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="h-64 bg-zinc-800 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : influencers.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {influencers.map((influencer) => (
+                  <div key={influencer.id} className="relative">
+                    <DynamicInfluencerCard
+                      id={influencer.id}
+                      name={influencer.name}
+                      handle={influencer.handle}
+                      avatar={influencer.avatar}
+                      category={influencer.category}
+                      description={influencer.description}
+                      followers={influencer.followers?.toString() || '0'}
+                      verified={influencer.verified}
+                      cardState={influencer.cardState}
+                      isApproved={influencer.isApproved}
+                      isLaunched={influencer.isLaunched}
+                      pledgeThresholdETH={influencer.pledgeThresholdETH}
+                      pledgeThresholdUSDC={influencer.pledgeThresholdUSDC}
+                      totalPledgedETH={influencer.totalPledgedETH}
+                      totalPledgedUSDC={influencer.totalPledgedUSDC}
+                      pledgeCount={influencer.pledgeCount}
+                      overallProgress={influencer.overallProgress}
+                      tokenSymbol={influencer.tokenSymbol}
+                      tokenAddress={influencer.tokenAddress}
+                    />
+                    
+                    {/* Admin Action Overlay */}
+                    <div className="absolute top-2 right-2 flex gap-1">
+                      {getInfluencerActions(influencer).map((action, index) => (
+                        <Button
+                          key={index}
+                          size="sm"
+                          className={`h-8 px-2 text-xs ${action.className}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            action.onClick();
+                          }}
+                        >
+                          <action.icon className="w-3 h-3" />
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Card className="bg-zinc-900 border-zinc-800">
+                <CardContent className="text-center py-12">
+                  <Users className="w-12 h-12 mx-auto mb-4 text-gray-400 opacity-50" />
+                  <h3 className="text-xl font-semibold mb-2">No Influencers Yet</h3>
+                  <p className="text-gray-400 mb-4">Start by adding your first influencer to the platform</p>
+                  <Button 
+                    onClick={() => setShowCreateModal(true)}
+                    className="bg-primary hover:bg-primary/90 text-black"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add First Influencer
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="token-factory" className="space-y-6">
             <Card className="bg-zinc-900 border-zinc-800">
               <CardHeader>
-                <CardTitle>Influencer Management</CardTitle>
-                <CardDescription>Overview of all influencers on the platform</CardDescription>
+                <CardTitle>Token Factory Status</CardTitle>
+                <CardDescription>Smart contract token deployment management</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-gray-400">
-                  <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p className="mb-2">Detailed influencer management coming soon</p>
-                  <p className="text-sm">Currently {stats?.totalInfluencers || 0} influencers on platform</p>
-                  <div className="mt-4 text-xs bg-zinc-800 p-3 rounded-lg">
-                    <p className="text-white mb-1">Quick stats:</p>
-                    <p>Total Influencers: {stats?.totalInfluencers || 0}</p>
-                    <p>Approved: {stats?.approvedInfluencers || 0}</p>
-                    <p>Pending Approval: {stats?.pendingApprovals || 0}</p>
-                    <p>Live Tokens: {stats?.totalTokens || 0}</p>
+                <div className="text-center py-8">
+                  <Rocket className="w-12 h-12 mx-auto mb-4 text-gray-400 opacity-50" />
+                  <p className="text-gray-400 mb-2">Token Factory integration active</p>
+                  <p className="text-sm text-gray-500">
+                    Ready to deploy tokens for {influencers.filter(i => i.cardState === 'ready_for_launch').length} approved influencers
+                  </p>
+                  <div className="mt-4 text-xs text-gray-500">
+                    Contract: {TOKEN_FACTORY_ADDRESS}
                   </div>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Create Influencer Modal */}
+        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+          <DialogContent className="bg-zinc-900 border-zinc-800 max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add New Influencer</DialogTitle>
+              <DialogDescription>
+                Create a new influencer profile with pledge thresholds
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Name</label>
+                  <Input
+                    placeholder="Logan Paul"
+                    value={newInfluencerForm.name}
+                    onChange={(e) => handleFormChange('name', e.target.value)}
+                    className="bg-zinc-800 border-zinc-700"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Handle</label>
+                  <Input
+                    placeholder="@loganpaul"
+                    value={newInfluencerForm.handle}
+                    onChange={(e) => handleFormChange('handle', e.target.value)}
+                    className="bg-zinc-800 border-zinc-700"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Email</label>
+                  <Input
+                    type="email"
+                    placeholder="logan@example.com"
+                    value={newInfluencerForm.email}
+                    onChange={(e) => handleFormChange('email', e.target.value)}
+                    className="bg-zinc-800 border-zinc-700"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Wallet Address</label>
+                  <Input
+                    placeholder="0x..."
+                    value={newInfluencerForm.walletAddress}
+                    onChange={(e) => handleFormChange('walletAddress', e.target.value)}
+                    className="bg-zinc-800 border-zinc-700"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Category</label>
+                  <Select value={newInfluencerForm.category} onValueChange={(value) => handleFormChange('category', value)}>
+                    <SelectTrigger className="bg-zinc-800 border-zinc-700">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-zinc-800 border-zinc-700">
+                      {CATEGORIES.map(category => (
+                        <SelectItem key={category} value={category}>{category}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Followers</label>
+                  <Input
+                    type="number"
+                    placeholder="1000000"
+                    value={newInfluencerForm.followers}
+                    onChange={(e) => handleFormChange('followers', e.target.value)}
+                    className="bg-zinc-800 border-zinc-700"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Description</label>
+                <Textarea
+                  placeholder="Brief description of the influencer..."
+                  value={newInfluencerForm.description}
+                  onChange={(e) => handleFormChange('description', e.target.value)}
+                  className="bg-zinc-800 border-zinc-700"
+                  rows={3}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">ETH Threshold</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="1.0"
+                    value={newInfluencerForm.pledgeThresholdETH}
+                    onChange={(e) => handleFormChange('pledgeThresholdETH', e.target.value)}
+                    className="bg-zinc-800 border-zinc-700"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">USDC Threshold</label>
+                  <Input
+                    type="number"
+                    placeholder="2000"
+                    value={newInfluencerForm.pledgeThresholdUSDC}
+                    onChange={(e) => handleFormChange('pledgeThresholdUSDC', e.target.value)}
+                    className="bg-zinc-800 border-zinc-700"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Token Name</label>
+                  <Input
+                    placeholder="Logan Paul Token"
+                    value={newInfluencerForm.tokenName}
+                    onChange={(e) => handleFormChange('tokenName', e.target.value)}
+                    className="bg-zinc-800 border-zinc-700"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Token Symbol</label>
+                  <Input
+                    placeholder="LOGAN"
+                    value={newInfluencerForm.tokenSymbol}
+                    onChange={(e) => handleFormChange('tokenSymbol', e.target.value)}
+                    className="bg-zinc-800 border-zinc-700"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="verified"
+                  checked={newInfluencerForm.verified}
+                  onChange={(e) => handleFormChange('verified', e.target.checked)}
+                  className="rounded"
+                />
+                <label htmlFor="verified" className="text-sm">Verified influencer</label>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button 
+                  onClick={handleCreateInfluencer}
+                  className="flex-1 bg-primary hover:bg-primary/90 text-black"
+                >
+                  Create Influencer
+                </Button>
+                <Button 
+                  onClick={() => setShowCreateModal(false)}
+                  variant="outline"
+                  className="border-zinc-700 hover:border-primary/50"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Token Creation Modal */}
+        <Dialog open={showTokenModal} onOpenChange={setShowTokenModal}>
+          <DialogContent className="bg-zinc-900 border-zinc-800">
+            <DialogHeader>
+              <DialogTitle>Create Token: {tokenCreationData?.name}</DialogTitle>
+              <DialogDescription>
+                Deploy token smart contract for {selectedInfluencer?.name}
+              </DialogDescription>
+            </DialogHeader>
+            
+            {tokenCreationData && (
+              <div className="space-y-4">
+                <div className="bg-zinc-800 p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2">Token Details</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Name:</span>
+                      <span>{tokenCreationData.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Symbol:</span>
+                      <span>{tokenCreationData.symbol}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Total Supply:</span>
+                      <span>{parseInt(tokenCreationData.totalSupply).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Influencer:</span>
+                      <span>{tokenCreationData.influencerName}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-800 p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2">Token Allocation</h4>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span>Influencer (30%):</span>
+                      <span>{(parseInt(tokenCreationData.totalSupply) * 0.3).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Treasury (65%):</span>
+                      <span>{(parseInt(tokenCreationData.totalSupply) * 0.65).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Platform (5%):</span>
+                      <span>{(parseInt(tokenCreationData.totalSupply) * 0.05).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {createCoinError && (
+                  <Alert className="border-red-500/20 bg-red-500/5">
+                    <AlertTriangle className="h-4 w-4 text-red-400" />
+                    <AlertDescription className="text-red-400">
+                      Error: {createCoinError.message}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={handleCreateToken}
+                    disabled={isCreateCoinLoading || isTransactionLoading || !isConnected}
+                    className="flex-1 bg-primary hover:bg-primary/90 text-black"
+                  >
+                    {(isCreateCoinLoading || isTransactionLoading) ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Creating Token...
+                      </>
+                    ) : (
+                      <>
+                        <Rocket className="w-4 h-4 mr-2" />
+                        Deploy Token ({factoryInfo ? formatEther(factoryInfo[2]) : "0.01"} ETH)
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    onClick={() => setShowTokenModal(false)}
+                    variant="outline"
+                    className="border-zinc-700 hover:border-primary/50"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
