@@ -1,4 +1,4 @@
-// src/App.tsx - Updated with proper dashboard routing
+// src/App.tsx - Updated with RobotAssistant mount
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +10,9 @@ import { config } from "./wagmiConfig";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import ScrollToTop from "@/components/ScrollToTop";
 import ProtectedRoute from "@/components/ProtectedRoute";
+
+// ADD: RobotAssistant
+import RobotAssistant from "@/components/onboarding/RobotAssistant";
 
 // Pages
 import Index from "./pages/Index";
@@ -40,6 +43,10 @@ const App = () => (
           <AuthProvider>
             <BrowserRouter>
               <ScrollToTop />
+
+              {/* ADD: Mount once, outside <Routes>, inside providers */}
+              <RobotAssistant />
+
               <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<Index />} />

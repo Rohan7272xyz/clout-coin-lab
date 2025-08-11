@@ -1,4 +1,4 @@
-// src/pages/CoinDetail.tsx - Complete Yahoo Finance Style with Real API Integration
+// src/pages/CoinDetail.tsx - Complete Yahoo Finance Style with Real API Integration (FIXED BACK BUTTON)
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -235,8 +235,9 @@ const CoinDetail = () => {
     refreshAllData();
   };
 
+  // FIXED: Route to correct PreInvest page instead of /influencers
   const handleBackToInfluencers = () => {
-    navigate('/influencers');
+    navigate('/pre-invest');
   };
 
   const formatNumber = (num: string | number, decimals = 2) => {
@@ -294,7 +295,7 @@ const CoinDetail = () => {
                 className="border-zinc-700 hover:border-primary/50"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Influencers
+                Back to PreInvest
               </Button>
             </div>
           </div>
@@ -317,7 +318,7 @@ const CoinDetail = () => {
             </p>
             <Button onClick={handleBackToInfluencers} className="bg-primary hover:bg-primary/90 text-black">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Influencers
+              Back to PreInvest
             </Button>
           </div>
         </div>
@@ -334,7 +335,7 @@ const CoinDetail = () => {
         <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-950/50">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
-              {/* Back Button */}
+              {/* FIXED: Back Button now routes to PreInvest */}
               <Button
                 onClick={handleBackToInfluencers}
                 variant="ghost"
@@ -342,15 +343,15 @@ const CoinDetail = () => {
                 className="text-gray-400 hover:text-white hover:bg-zinc-800 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Influencers
+                Back to PreInvest
               </Button>
               
               {/* Breadcrumb separator */}
               <div className="text-gray-600">•</div>
               
-              {/* Breadcrumb info */}
+              {/* UPDATED: Breadcrumb info */}
               <div className="text-sm text-gray-400">
-                CoinFluence · Live Quote · USD
+                CoinFluence · Influencer Tokens · Live Quote · USD
               </div>
             </div>
             
@@ -569,7 +570,7 @@ const CoinDetail = () => {
                           ['52 Week Range', `${coinData.fiftyTwoWeekRange.low} - ${coinData.fiftyTwoWeekRange.high}`],
                           ['Volume', coinData.volume24h],
                           ['Avg. Volume', coinData.avgVolume],
-                          ['Market Cap', `$${coinData.marketCap}`],
+                          ['Market Cap', `${coinData.marketCap}`],
                           ['Beta (5Y Monthly)', coinData.beta],
                           ['PE Ratio (TTM)', coinData.peRatio],
                           ['EPS (TTM)', coinData.eps],

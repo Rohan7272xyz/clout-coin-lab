@@ -1,5 +1,4 @@
-// Backend/routes/influencerRoutes.js - UNIFIED VERSION
-// Combines both admin and public functionality into single source of truth
+// Backend/routes/influencerRoutes.js - Phase 4A: Updated for optional wallet address
 const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
@@ -167,7 +166,7 @@ router.get('/', async (req, res) => {
         name: row.name,
         handle: row.handle,
         email: row.email,
-        wallet_address: row.wallet_address,
+        wallet_address: row.wallet_address || null, // Now nullable
         category: row.category,
         description: row.description,
         avatar_url: row.avatar_url,
@@ -210,7 +209,7 @@ router.get('/', async (req, res) => {
         updated_at: row.updated_at,
         
         // Legacy fields for backward compatibility
-        address: row.wallet_address,
+        address: row.wallet_address || null,
         tokenName: row.token_name || `${row.name} Token`,
         symbol: row.token_symbol || row.name.substring(0, 5).toUpperCase().replace(/\s/g, ''),
         totalPledgedETH: (row.total_pledged_eth || 0).toString(),
@@ -322,7 +321,7 @@ router.get('/:id', async (req, res) => {
       name: row.name,
       handle: row.handle,
       email: row.email,
-      walletAddress: row.wallet_address,
+      walletAddress: row.wallet_address || null, // Now nullable
       category: row.category,
       description: row.description,
       avatar: row.avatar_url,
@@ -364,55 +363,68 @@ router.get('/:id', async (req, res) => {
 // ADMIN ENDPOINTS (Auth required)
 // ======================
 
-// POST /api/influencer - Create new influencer (Admin only)
+// POST /api/influencer - Create new influencer CARD (Admin only) - UPDATED: No wallet required
 router.post('/', requireAuth, requireAdmin, async (req, res) => {
   try {
     const {
       name,
       handle,
       email,
-      walletAddress,
       category,
       description,
-      followers,
+      followersCount,
+      avatarUrl,
       pledgeThresholdETH,
       pledgeThresholdUSDC,
-      tokenName,
-      tokenSymbol,
-      verified = false
+      verified = false,
+      createCardOnly = false // Flag to indicate card-only creation
     } = req.body;
     
-    // Validation
-    if (!name || !handle || !email || !walletAddress) {
+    // UPDATED: Only name, handle, and email are required for card creation
+    if (!name || !handle || !email) {
       return res.status(400).json({
         success: false,
-        error: 'Name, handle, email, and wallet address are required'
+        error: 'Name, handle, and email are required to create influencer card'
       });
     }
+    
+    console.log('📝 Creating influencer card (no wallet required):', { name, handle, email, createCardOnly });
     
     // Ensure handle starts with @
     const formattedHandle = handle.startsWith('@') ? handle : '@' + handle;
     
+    // UPDATED: Insert without wallet_address requirement
     const result = await db.query(`
       INSERT INTO influencers (
-        name, handle, email, wallet_address, category, description, 
+        name, handle, email, category, description, 
         followers_count, pledge_threshold_eth, pledge_threshold_usdc,
-        token_name, token_symbol, verified, status, created_by
+        avatar_url, verified, status, created_by
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pledging', $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11)
       RETURNING *
     `, [
-      name, formattedHandle, email, walletAddress, category, description,
-      followers || 0, pledgeThresholdETH || 0, pledgeThresholdUSDC || 0,
-      tokenName, tokenSymbol, verified, req.user.uid
+      name, 
+      formattedHandle, 
+      email, 
+      category || 'general', 
+      description || '',
+      followersCount || 0, 
+      pledgeThresholdETH || 0, 
+      pledgeThresholdUSDC || 0,
+      avatarUrl || '',
+      verified, 
+      req.user.uid
     ]);
     
-    console.log(`✅ Created influencer: ${name} (ID: ${result.rows[0].id})`);
+    console.log(`✅ Created influencer card: ${name} (ID: ${result.rows[0].id}) - No wallet address required`);
+    
     res.status(201).json({
       success: true,
       data: result.rows[0],
-      message: 'Influencer created successfully'
+      message: `Influencer card for ${name} created successfully! Card is now visible on PreInvest page.`,
+      cardOnly: true // Flag to indicate this is just a card
     });
+    
   } catch (error) {
     if (error.code === '23505') { // Unique constraint violation
       const detail = error.detail || '';
@@ -420,15 +432,13 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
         return res.status(400).json({ success: false, error: 'Handle already exists' });
       } else if (detail.includes('email')) {
         return res.status(400).json({ success: false, error: 'Email already exists' });
-      } else if (detail.includes('wallet_address')) {
-        return res.status(400).json({ success: false, error: 'Wallet address already exists' });
       }
     }
     
-    console.error('Error creating influencer:', error);
+    console.error('Error creating influencer card:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Failed to create influencer',
+      error: 'Failed to create influencer card',
       details: error.message 
     });
   }
@@ -459,7 +469,9 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
       pledgeThresholdUSDC: 'pledge_threshold_usdc',
       tokenName: 'token_name',
       tokenSymbol: 'token_symbol',
-      followers: 'followers_count'
+      followers: 'followers_count',
+      followersCount: 'followers_count',
+      avatarUrl: 'avatar_url'
     };
     
     const dbUpdates = {};
@@ -535,13 +547,6 @@ router.post('/:id/approve', requireAuth, requireAdmin, async (req, res) => {
 
     const influencer = influencerResult.rows[0];
 
-    if (!influencer.threshold_met) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Cannot approve: pledge threshold not met' 
-      });
-    }
-
     if (influencer.is_approved) {
       return res.status(400).json({ 
         success: false, 
@@ -557,18 +562,20 @@ router.post('/:id/approve', requireAuth, requireAdmin, async (req, res) => {
       RETURNING *
     `, [id]);
 
-    // Log approval event
-    await db.query(`
-      INSERT INTO pledge_events (event_type, influencer_address, event_data)
-      VALUES ('approved', $1, $2)
-    `, [
-      influencer.wallet_address,
-      JSON.stringify({
-        approved_by: req.dbUser.email,
-        approved_at: new Date().toISOString(),
-        influencer_name: influencer.name
-      })
-    ]);
+    // Log approval event (only if wallet address exists)
+    if (influencer.wallet_address) {
+      await db.query(`
+        INSERT INTO pledge_events (event_type, influencer_address, event_data)
+        VALUES ('approved', $1, $2)
+      `, [
+        influencer.wallet_address,
+        JSON.stringify({
+          approved_by: req.dbUser.email,
+          approved_at: new Date().toISOString(),
+          influencer_name: influencer.name
+        })
+      ]);
+    }
 
     console.log(`✅ Influencer ${influencer.name} approved successfully`);
     res.json({
@@ -587,46 +594,95 @@ router.post('/:id/approve', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// POST /api/influencer/:id/create-token - Create token for approved influencer (Admin only)
+// POST /api/influencer/:id/create-token - Create token for influencer (Admin only) - UPDATED
 router.post('/:id/create-token', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { tokenAddress, txHash } = req.body;
+    const { 
+      walletAddress, // NOW provided during token creation
+      tokenName,
+      tokenSymbol,
+      totalSupply,
+      tokenAddress, 
+      txHash 
+    } = req.body;
 
     console.log(`🚀 Creating token for influencer ID: ${id}`);
 
-    if (!tokenAddress || !txHash) {
+    // UPDATED: Wallet address is now required during token creation, not card creation
+    if (!walletAddress || !tokenName || !tokenSymbol) {
       return res.status(400).json({
         success: false,
-        error: 'Token address and transaction hash are required'
+        error: 'Wallet address, token name, and token symbol are required for token creation'
       });
     }
 
-    // Prepare token creation data
-    const tokenData = await tokenCreationService.prepareTokenCreation(id);
+    // Get influencer details
+    const influencerResult = await db.query('SELECT * FROM influencers WHERE id = $1', [id]);
     
-    // Process the token creation and sync with database
-    const result = await tokenCreationService.handleTokenCreation({
-      influencerId: id,
-      tokenAddress,
-      txHash,
-      tokenName: tokenData.name,
-      tokenSymbol: tokenData.symbol,
-      influencerName: tokenData.influencerName,
-      influencerWallet: tokenData.influencerWallet,
-      totalSupply: tokenData.totalSupply,
-      createdBy: req.dbUser.email
-    });
+    if (influencerResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Influencer not found' });
+    }
 
-    console.log(`✅ Token created successfully for ${tokenData.influencerName}`);
+    const influencer = influencerResult.rows[0];
+
+    // Update influencer with wallet address and token details
+    const updateResult = await db.query(`
+      UPDATE influencers 
+      SET 
+        wallet_address = $2,
+        token_name = $3,
+        token_symbol = $4,
+        status = 'live',
+        launched_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `, [id, walletAddress, tokenName, tokenSymbol]);
+
+    // Create token record in tokens table if it exists
+    try {
+      await db.query(`
+        INSERT INTO tokens (influencer_id, name, ticker, status, contract_address, total_supply, launched_at)
+        VALUES ($1, $2, $3, 'live', $4, $5, CURRENT_TIMESTAMP)
+        ON CONFLICT (influencer_id) DO UPDATE SET
+          name = EXCLUDED.name,
+          ticker = EXCLUDED.ticker,
+          status = EXCLUDED.status,
+          contract_address = EXCLUDED.contract_address,
+          total_supply = EXCLUDED.total_supply,
+          launched_at = EXCLUDED.launched_at
+      `, [id, tokenName, tokenSymbol, tokenAddress, totalSupply || 1000000]);
+    } catch (tokenError) {
+      console.log('Note: tokens table may not exist yet, skipping token record creation');
+    }
+
+    // Log token creation event
+    await db.query(`
+      INSERT INTO pledge_events (event_type, influencer_address, event_data)
+      VALUES ('token_created', $1, $2)
+    `, [
+      walletAddress,
+      JSON.stringify({
+        created_by: req.dbUser.email,
+        created_at: new Date().toISOString(),
+        influencer_name: influencer.name,
+        token_name: tokenName,
+        token_symbol: tokenSymbol,
+        token_address: tokenAddress,
+        tx_hash: txHash
+      })
+    ]);
+
+    console.log(`✅ Token created successfully for ${influencer.name}`);
     res.json({
       success: true,
       data: {
-        tokenId: result.tokenId,
-        tokenAddress: result.tokenAddress,
-        influencer: result.influencer
+        influencer: updateResult.rows[0],
+        tokenAddress: tokenAddress,
+        txHash: txHash
       },
-      message: `Token ${tokenData.symbol} created successfully for ${tokenData.influencerName}`
+      message: `Token ${tokenSymbol} created successfully for ${influencer.name}`
     });
 
   } catch (error) {
@@ -634,28 +690,6 @@ router.post('/:id/create-token', requireAuth, requireAdmin, async (req, res) => 
     res.status(500).json({ 
       success: false, 
       error: 'Failed to create token',
-      details: error.message 
-    });
-  }
-});
-
-// GET /api/influencer/:id/token-data - Get token creation data for frontend (Admin only)
-router.get('/:id/token-data', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const tokenData = await tokenCreationService.prepareTokenCreation(id);
-    
-    res.json({
-      success: true,
-      data: tokenData
-    });
-
-  } catch (error) {
-    console.error('❌ Error getting token data:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to get token creation data',
       details: error.message 
     });
   }
@@ -684,7 +718,7 @@ router.get('/admin/stats', requireAuth, requireAdmin, async (req, res) => {
           COUNT(*) as total_influencers,
           COUNT(CASE WHEN status = 'live' THEN 1 END) as live_tokens,
           COUNT(CASE WHEN is_approved = true THEN 1 END) as approved_influencers,
-          COUNT(CASE WHEN status = 'pledging' AND is_approved = false THEN 1 END) as pending_approvals
+          COUNT(CASE WHEN status = 'pending' AND is_approved = false THEN 1 END) as pending_approvals
         FROM influencers
       `),
       
@@ -719,18 +753,18 @@ router.get('/admin/stats', requireAuth, requireAdmin, async (req, res) => {
     const totalFees = totalVolume * 0.05; // 5% platform fee
 
     const response = {
-      totalUsers: parseInt(userStats.total_users),
       totalInfluencers: parseInt(influencerStats.total_influencers),
-      totalTokens: parseInt(influencerStats.live_tokens),
+      activeTokens: parseInt(influencerStats.live_tokens), // Updated field name
+      pendingApprovals: parseInt(influencerStats.pending_approvals),
+      totalPledges: parseInt(pledgeStats.total_pledges || 0),
+      totalEthRaised: parseFloat(pledgeStats.total_eth_pledged || 0),
+      totalUsdcRaised: parseFloat(pledgeStats.total_usdc_pledged || 0),
       totalVolume: totalVolume,
       totalFees: totalFees,
-      pendingApprovals: parseInt(influencerStats.pending_approvals),
       activeUsers24h: parseInt(pledgeStats.unique_pledgers || 0),
       newUsersToday: parseInt(userStats.new_users_today),
       approvedInfluencers: parseInt(influencerStats.approved_influencers),
-      totalPledgers: parseInt(pledgeStats.unique_pledgers || 0),
-      totalEthPledged: parseFloat(pledgeStats.total_eth_pledged || 0),
-      totalUsdcPledged: parseFloat(pledgeStats.total_usdc_pledged || 0)
+      totalPledgers: parseInt(pledgeStats.unique_pledgers || 0)
     };
 
     console.log('✅ Admin stats loaded successfully:', response);
@@ -914,7 +948,7 @@ router.get('/coin/:identifier', async (req, res) => {
       lockUntil: "2025-12-31",
       
       // Status
-      isLive: influencer.is_live || influencer.status === 'live' || !!influencer.launched_at,
+      isLive: influencer.status === 'live' || !!influencer.launched_at,
       etherscanVerified: true,
       launchedAt: influencer.launched_at
     };

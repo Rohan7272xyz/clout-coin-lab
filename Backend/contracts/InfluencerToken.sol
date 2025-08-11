@@ -1,8 +1,5 @@
-// File: contracts/InfluencerToken.sol
-// Place this in your backend contracts folder
-
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -18,7 +15,7 @@ contract InfluencerToken is ERC20, Ownable {
         string memory symbol,
         address _influencerWallet,
         address _liquidityWallet
-    ) ERC20(name, symbol) {
+    ) ERC20(name, symbol) Ownable(_liquidityWallet) {
         influencerWallet = _influencerWallet;
         
         // Mint 30% to influencer

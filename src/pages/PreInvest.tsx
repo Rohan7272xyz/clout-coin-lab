@@ -1,6 +1,4 @@
-// FILE: src/pages/PreInvest.tsx
-// Updated to remove CTA button and auto-scroll to influencer tokens
-
+// src/pages/PreInvest.tsx - UPDATED: Use unified API endpoint
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -58,33 +56,83 @@ const PreInvest = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // FIXED: Use unified API endpoint instead of pledge-specific endpoint
   const loadInfluencers = async () => {
     try {
       setLoading(true);
       setError(null);
       
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      console.log('🔍 Fetching influencers from:', `${apiUrl}/api/pledge/influencers`);
       
-      const response = await fetch(`${apiUrl}/api/pledge/influencers`);
+      // UPDATED: Use unified influencer endpoint instead of pledge endpoint
+      console.log('🔍 Fetching influencers from unified API:', `${apiUrl}/api/influencer`);
+      
+      const response = await fetch(`${apiUrl}/api/influencer`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
       const data = await response.json();
-      console.log('✅ Influencers loaded:', data);
+      console.log('✅ Unified API response:', data);
       
-      setInfluencers(data);
+      // UPDATED: Handle unified API response format
+      if (data.success && data.data) {
+        // Transform unified API data to match PreInvest expectations
+        const transformedInfluencers = data.data.map((influencer: any) => ({
+          address: influencer.wallet_address || influencer.address || `temp_${influencer.id}`,
+          name: influencer.name,
+          handle: influencer.handle || `@${influencer.name.toLowerCase().replace(/\s+/g, '')}`,
+          tokenName: influencer.token_name || influencer.tokenName || `${influencer.name} Token`,
+          symbol: influencer.token_symbol || influencer.symbol || influencer.name.substring(0, 5).toUpperCase().replace(/\s/g, ''),
+          totalPledgedETH: String(influencer.total_pledged_eth || influencer.totalPledgedETH || 0),
+          totalPledgedUSDC: String(influencer.total_pledged_usdc || influencer.totalPledgedUSDC || 0),
+          thresholdETH: String(influencer.pledge_threshold_eth || influencer.thresholdETH || 0),
+          thresholdUSDC: String(influencer.pledge_threshold_usdc || influencer.thresholdUSDC || 0),
+          pledgerCount: influencer.pledge_count || influencer.pledgerCount || 0,
+          thresholdMet: influencer.threshold_met || influencer.thresholdMet || false,
+          isApproved: influencer.is_approved || influencer.isApproved || false,
+          isLaunched: influencer.is_launched || influencer.isLaunched || influencer.status === 'live' || !!influencer.launched_at,
+          tokenAddress: influencer.token_address || influencer.tokenAddress || null,
+          createdAt: influencer.created_at ? new Date(influencer.created_at).getTime() : Date.now(),
+          launchedAt: influencer.launched_at ? new Date(influencer.launched_at).getTime() : null,
+          
+          // UI data
+          avatar: influencer.avatar_url || influencer.avatar || null,
+          followers: influencer.followers ? String(influencer.followers) : 
+                     influencer.followers_count ? formatFollowers(influencer.followers_count) : null,
+          category: influencer.category || 'General',
+          description: influencer.description || `${influencer.name} is an amazing content creator!`,
+          verified: influencer.verified || false,
+          
+          // Trading data (for live tokens)
+          currentPrice: influencer.current_price || influencer.currentPrice || null,
+          marketCap: influencer.market_cap || influencer.marketCap || null,
+          volume24h: influencer.volume_24h || influencer.volume24h || null,
+          priceChange24h: influencer.price_change_24h || influencer.priceChange24h || null
+        }));
+        
+        console.log('✅ Transformed influencers for PreInvest:', transformedInfluencers);
+        setInfluencers(transformedInfluencers);
+      } else {
+        console.log('⚠️ No data in unified API response:', data);
+        setInfluencers([]);
+      }
+      
     } catch (err) {
-      console.error('❌ Error loading influencers:', err);
+      console.error('❌ Error loading influencers from unified API:', err);
       setError(err instanceof Error ? err.message : 'Failed to load influencers');
-      
-      // No fallback data - force proper error handling
       setInfluencers([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to format followers
+  const formatFollowers = (count: number): string => {
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+    return count.toString();
   };
 
   const calculateProgress = (current: string, threshold: string): number => {
@@ -166,7 +214,7 @@ const PreInvest = () => {
       <Header />
       
       <main className="pt-16">
-        {/* Hero Section - REMOVED Connect Wallet Button */}
+        {/* Hero Section */}
         <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0 chart-lines"></div>
           <div className="container mx-auto px-4 text-center relative z-10 min-h-[calc(100vh-80px)] flex flex-col justify-start pt-32">
@@ -184,12 +232,10 @@ const PreInvest = () => {
               Be among the first to invest in your favorite influencers. Join our waitlist for exclusive early access to the platform.
             </p>
             
-            {/* REMOVED: Connect Wallet button section */}
-            
             <div className="flex justify-center items-center space-x-8 text-sm text-gray-muted">
               <div className="flex items-center">
                 <Users className="w-4 h-4 mr-2 text-primary" />
-                <span>0 people waiting</span>
+                <span>{influencers.length} influencers available</span>
               </div>
               <div className="flex items-center">
                 <Bell className="w-4 h-4 mr-2 text-primary" />
@@ -199,7 +245,7 @@ const PreInvest = () => {
           </div>
         </section>
 
-        {/* Full Influencers Section - REPLACED small cards with complete interface */}
+        {/* Influencer Tokens Section */}
         <section ref={influencerTokensRef} className="py-16 bg-card/50">
           <div className="container mx-auto px-4">
             <div className="text-center mb-12">
@@ -221,11 +267,21 @@ const PreInvest = () => {
                   <p className="text-gray-400">Loading influencer tokens...</p>
                 </div>
               </div>
+            ) : error ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <p className="text-red-400 mb-4">Error: {error}</p>
+                  <Button onClick={loadInfluencers} className="bg-primary hover:bg-primary/90 text-black">
+                    Try Again
+                  </Button>
+                </div>
+              </div>
             ) : (
               <>
-                {/* Responsive horizontal cards - automatically adjusts based on data */}
+
+                {/* Responsive horizontal cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto mb-10 justify-items-center">
-                  {influencers.map((influencer, index) => {
+                  {influencers.length > 0 ? influencers.map((influencer, index) => {
                     const ethProgress = calculateProgress(influencer.totalPledgedETH, influencer.thresholdETH);
                     const usdcProgress = calculateProgress(influencer.totalPledgedUSDC, influencer.thresholdUSDC);
                     const overallProgress = Math.max(ethProgress, usdcProgress);
@@ -233,7 +289,7 @@ const PreInvest = () => {
 
                     return (
                       <Card 
-                        key={influencer.address} 
+                        key={influencer.address || `influencer-${index}`} 
                         className={`relative bg-zinc-900 border-zinc-800 hover:border-primary/50 transition-all duration-500 group cursor-pointer overflow-hidden animate-slide-in-up w-full max-w-sm ${
                           isHot ? 'ring-1 ring-primary/20' : ''
                         }`}
@@ -273,14 +329,14 @@ const PreInvest = () => {
                             }`} />
                             {influencer.isLaunched ? 'Live' : 
                              influencer.isApproved ? 'Approved' :
-                             influencer.thresholdMet ? 'Ready' : 'Accepting Interest'}
+                             influencer.thresholdMet ? 'Ready' : 'New Card'}
                           </Badge>
                         </div>
 
                         <CardHeader className="text-center pb-4 pt-8">
                           <div className="relative w-24 h-24 mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
                             <img
-                              src={influencer.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${influencer.address}`}
+                              src={influencer.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${influencer.name}`}
                               alt={influencer.name}
                               className={`w-full h-full rounded-full object-cover border-2 transition-all duration-300 ${
                                 isHot || influencer.isLaunched 
@@ -397,10 +453,14 @@ const PreInvest = () => {
                         <div className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                       </Card>
                     );
-                  })}
+                  }) : (
+                    <div className="col-span-full text-center py-12">
+                      <Users className="w-16 h-16 mx-auto mb-4 text-gray-500 opacity-50" />
+                      <p className="text-gray-400 mb-2">No influencer cards found</p>
+                      <p className="text-sm text-gray-500">Cards created in admin dashboard will appear here</p>
+                    </div>
+                  )}
                 </div>
-
-                {/* REMOVED: Show All Button since this IS the full interface now */}
               </>
             )}
           </div>
