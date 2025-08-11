@@ -235,6 +235,10 @@ const CoinDetail = () => {
     refreshAllData();
   };
 
+  const handleBackToInfluencers = () => {
+    navigate('/influencers');
+  };
+
   const formatNumber = (num: string | number, decimals = 2) => {
     const n = typeof num === 'string' ? parseFloat(num) : num;
     if (n >= 1e9) return (n / 1e9).toFixed(decimals) + 'B';
@@ -285,12 +289,12 @@ const CoinDetail = () => {
                 Retry
               </Button>
               <Button 
-                onClick={() => navigate(-1)} 
+                onClick={handleBackToInfluencers} 
                 variant="outline"
                 className="border-zinc-700 hover:border-primary/50"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
+                Back to Influencers
               </Button>
             </div>
           </div>
@@ -311,9 +315,9 @@ const CoinDetail = () => {
             <p className="text-gray-400 mb-4">
               The token "{id}" could not be found or is not available.
             </p>
-            <Button onClick={() => navigate(-1)} className="bg-primary hover:bg-primary/90 text-black">
+            <Button onClick={handleBackToInfluencers} className="bg-primary hover:bg-primary/90 text-black">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
+              Back to Influencers
             </Button>
           </div>
         </div>
@@ -326,23 +330,30 @@ const CoinDetail = () => {
       <Header />
       
       <div className="pt-20">
-        {/* Breadcrumb - UPDATED WITH BACK BUTTON */}
-        <div className="px-4 py-2 border-b border-zinc-800">
+        {/* Enhanced Breadcrumb with Back Button */}
+        <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-950/50">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
+              {/* Back Button */}
               <Button
+                onClick={handleBackToInfluencers}
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate(-1)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-gray-400 hover:text-white hover:bg-zinc-800 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
+                Back to Influencers
               </Button>
+              
+              {/* Breadcrumb separator */}
+              <div className="text-gray-600">•</div>
+              
+              {/* Breadcrumb info */}
               <div className="text-sm text-gray-400">
                 CoinFluence · Live Quote · USD
               </div>
             </div>
+            
             {/* Show data source info */}
             <div className="flex items-center gap-2 text-xs text-gray-500">
               <div className={`w-2 h-2 rounded-full ${hasAnyData ? 'bg-green-400' : 'bg-red-400'}`} />
@@ -789,7 +800,7 @@ const CoinDetail = () => {
                       <div className="text-green-400">{item.change}</div>
                     </div>
                   </div>
-                </div>
+                ))}
               </CardContent>
             </Card>
           </div>
