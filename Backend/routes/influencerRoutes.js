@@ -7,6 +7,16 @@ const tokenCreationService = require('../services/tokenCreationService');
 const { spawn } = require('child_process');
 const path = require('path');
 
+// Helper function to format followers - MOVED TO TOP TO FIX ERROR
+function formatFollowers(count) {
+  if (count >= 1000000) {
+    return (count / 1000000).toFixed(1) + 'M';
+  } else if (count >= 1000) {
+    return (count / 1000).toFixed(1) + 'K';
+  }
+  return count.toString();
+}
+
 // Middleware to verify authentication
 const requireAuth = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -47,6 +57,160 @@ const requireAdmin = (req, res, next) => {
   }
   next();
 };
+
+// Helper function to deploy real token using Hardhat - FIXED VERSION
+async function deployRealToken(tokenName, tokenSymbol, walletAddress, network = 'base-sepolia') {
+  return new Promise((resolve, reject) => {
+    console.log(`🔧 Starting ${network} deployment: ${tokenName} (${tokenSymbol}) for ${walletAddress}`);
+    
+    // FIXED: Use environment variable approach instead of hardhat positional args
+    let command, args, env;
+    
+    if (network === 'base' || network === 'base-sepolia') {
+      command = 'node';
+      args = ['scripts/deployInfluencerToken.js', tokenName, tokenSymbol, walletAddress];
+      env = { 
+        ...process.env, 
+        HARDHAT_NETWORK: network // Set network via environment variable
+      };
+    } else {
+      // Fallback to testnet for unsupported networks
+      command = 'node';
+      args = ['scripts/deployInfluencerToken.js', tokenName, tokenSymbol, walletAddress];
+      env = { 
+        ...process.env, 
+        HARDHAT_NETWORK: 'base-sepolia'
+      };
+    }
+    
+    // Set working directory to Backend folder where Hardhat is configured
+    const workingDir = path.join(__dirname, '..');
+    
+    console.log(`📦 Executing: HARDHAT_NETWORK=${network} ${command} ${args.join(' ')} in ${workingDir}`);
+    
+    const deployment = spawn(command, args, {
+      cwd: workingDir,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: env // Use modified environment with HARDHAT_NETWORK
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    deployment.stdout.on('data', (data) => {
+      const output = data.toString();
+      stdout += output;
+      console.log(`📤 Deployment output: ${output.trim()}`);
+    });
+    
+    deployment.stderr.on('data', (data) => {
+      const error = data.toString();
+      stderr += error;
+      console.log(`⚠️ Deployment warning: ${error.trim()}`);
+    });
+    
+    deployment.on('close', (code) => {
+      console.log(`🏁 Deployment process finished with code: ${code}`);
+      
+      if (code === 0) {
+        // Parse successful deployment output
+        try {
+          // Look for JSON output from deployment script - improved regex to handle multiline JSON
+          const jsonMatch = stdout.match(/📦 DEPLOYMENT_RESULT_JSON:\s*\n*(\{[\s\S]*?\n\})/);
+          
+          if (jsonMatch) {
+            // Clean up the JSON string by removing any console output mixed in
+            let jsonString = jsonMatch[1];
+            
+            // Remove any console log lines that might be mixed in
+            jsonString = jsonString.replace(/^\[dotenv.*$/gm, '');
+            jsonString = jsonString.replace(/^🌐.*$/gm, '');
+            jsonString = jsonString.replace(/^🔗.*$/gm, '');
+            jsonString = jsonString.replace(/^🚀.*$/gm, '');
+            jsonString = jsonString.replace(/^💰.*$/gm, '');
+            jsonString = jsonString.replace(/^📝.*$/gm, '');
+            jsonString = jsonString.replace(/^⏳.*$/gm, '');
+            jsonString = jsonString.replace(/^🔄.*$/gm, '');
+            jsonString = jsonString.replace(/^✅.*$/gm, '');
+            jsonString = jsonString.replace(/^📍.*$/gm, '');
+            jsonString = jsonString.replace(/^🔍.*$/gm, '');
+            jsonString = jsonString.replace(/^📊.*$/gm, '');
+            
+            // Remove empty lines and trim
+            jsonString = jsonString.replace(/^\s*$/gm, '').trim();
+            
+            console.log('🧹 Cleaned JSON string:', jsonString);
+            
+            const result = JSON.parse(jsonString);
+            resolve({
+              success: true,
+              tokenAddress: result.tokenAddress,
+              txHash: result.txHash,
+              network: result.network,
+              networkName: result.networkName,
+              chainId: result.chainId,
+              explorerUrl: result.explorerUrl,
+              verification: result.verification,
+              fullOutput: stdout
+            });
+          } else {
+            // Fallback: Look for individual log lines
+            const contractMatch = stdout.match(/📍 Contract address: (0x[a-fA-F0-9]{40})/);
+            const txHashMatch = stdout.match(/🔗 Transaction hash: (0x[a-fA-F0-9]{64})/);
+            
+            if (contractMatch && txHashMatch) {
+              resolve({
+                success: true,
+                tokenAddress: contractMatch[1],
+                txHash: txHashMatch[1],
+                network: network,
+                fullOutput: stdout,
+                note: 'Deployment succeeded but JSON parsing failed, using fallback'
+              });
+            } else {
+              reject(new Error(`Deployment succeeded but couldn't parse contract details from output: ${stdout}`));
+            }
+          }
+        } catch (parseError) {
+          // Even if JSON parsing fails, try to extract key info manually
+          console.log('⚠️ JSON parsing failed, trying manual extraction:', parseError.message);
+          
+          const contractMatch = stdout.match(/📍 Contract address: (0x[a-fA-F0-9]{40})/);
+          const txHashMatch = stdout.match(/🔗 Transaction hash: (0x[a-fA-F0-9]{64})/);
+          
+          if (contractMatch && txHashMatch) {
+            resolve({
+              success: true,
+              tokenAddress: contractMatch[1],
+              txHash: txHashMatch[1],
+              network: network,
+              fullOutput: stdout,
+              note: 'JSON parsing failed but manual extraction succeeded'
+            });
+          } else {
+            reject(new Error(`Deployment succeeded but output parsing failed: ${parseError.message}. Output: ${stdout}`));
+          }
+        }
+      } else {
+        // Deployment failed
+        const fullError = stderr || stdout || 'Unknown deployment error';
+        console.log(`❌ Deployment failed with code ${code}:`, fullError);
+        reject(new Error(`Deployment failed: ${fullError}`));
+      }
+    });
+    
+    deployment.on('error', (error) => {
+      console.log(`💥 Deployment process error:`, error);
+      reject(new Error(`Failed to start deployment process: ${error.message}`));
+    });
+    
+    // Set a timeout for deployment
+    setTimeout(() => {
+      deployment.kill();
+      reject(new Error('Deployment timeout after 2 minutes'));
+    }, 120000); // 2 minutes timeout
+  });
+}
 
 // ======================
 // PUBLIC ENDPOINTS (No auth required)
@@ -454,7 +618,7 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
       tokenName,
       tokenSymbol,
       totalSupply = 1000000,
-      network = 'local' // 'local' or 'base-sepolia'
+      network = 'base-sepolia' // Changed default to base-sepolia
     } = req.body;
 
     console.log(`🚀 Deploying REAL token for influencer ID: ${id} on ${network} network`);
@@ -476,7 +640,7 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
 
     const influencer = influencerResult.rows[0];
     
-    // Call real Hardhat deployment script
+    // Call real Hardhat deployment script - NOW USES FIXED VERSION
     const deploymentResult = await deployRealToken(tokenName, tokenSymbol, walletAddress, network);
     
     if (!deploymentResult.success) {
@@ -499,22 +663,43 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
       RETURNING *
     `, [id, walletAddress, tokenName, tokenSymbol]);
 
-    // Create token record in tokens table
+    // FIXED: Create token record in tokens table with correct schema
     try {
       await db.query(`
-        INSERT INTO tokens (influencer_id, name, ticker, status, contract_address, total_supply, launched_at, network)
-        VALUES ($1, $2, $3, 'live', $4, $5, CURRENT_TIMESTAMP, $6)
+        INSERT INTO tokens (
+          influencer_id, 
+          name, 
+          ticker, 
+          status, 
+          contract_address, 
+          total_supply, 
+          chain_id,
+          launched_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
         ON CONFLICT (influencer_id) DO UPDATE SET
           name = EXCLUDED.name,
           ticker = EXCLUDED.ticker,
           status = EXCLUDED.status,
           contract_address = EXCLUDED.contract_address,
           total_supply = EXCLUDED.total_supply,
+          chain_id = EXCLUDED.chain_id,
           launched_at = EXCLUDED.launched_at,
-          network = EXCLUDED.network
-      `, [id, tokenName, tokenSymbol, deploymentResult.tokenAddress, totalSupply, network]);
+          updated_at = CURRENT_TIMESTAMP
+      `, [
+        id,                                    // influencer_id
+        tokenName,                            // name
+        tokenSymbol,                          // ticker
+        'live',                               // status
+        deploymentResult.tokenAddress,        // contract_address
+        totalSupply,                          // total_supply
+        deploymentResult.chainId || 84532     // chain_id (Base Sepolia)
+      ]);
+      
+      console.log(`✅ Token record created in database for ${tokenName}`);
     } catch (tokenError) {
-      console.log('Note: tokens table may not exist yet, skipping token record creation');
+      console.error('❌ Error creating token record:', tokenError.message);
+      // Don't fail the entire deployment if token record creation fails
     }
 
     // Use tokenCreationService for comprehensive database updates
@@ -593,103 +778,6 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
     });
   }
 });
-
-// Helper function to deploy real token using Hardhat
-async function deployRealToken(tokenName, tokenSymbol, walletAddress, network = 'base-sepolia') {
-  return new Promise((resolve, reject) => {
-    console.log(`🔧 Starting ${network} deployment: ${tokenName} (${tokenSymbol}) for ${walletAddress}`);
-    
-    // Determine the correct command based on network
-    let command, args;
-    
-    if (network === 'base' || network === 'base-sepolia') {
-      command = 'npx';
-      args = ['hardhat', 'run', 'scripts/deployInfluencerToken.js', '--network', network, tokenName, tokenSymbol, walletAddress];
-    } else {
-      // Fallback to testnet for unsupported networks
-      command = 'npx';
-      args = ['hardhat', 'run', 'scripts/deployInfluencerToken.js', '--network', 'base-sepolia', tokenName, tokenSymbol, walletAddress];
-    }
-    
-    // Set working directory to Backend folder where Hardhat is configured
-    const workingDir = path.join(__dirname, '..');
-    
-    console.log(`📦 Executing: ${command} ${args.join(' ')} in ${workingDir}`);
-    
-    const deployment = spawn(command, args, {
-      cwd: workingDir,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env }
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    deployment.stdout.on('data', (data) => {
-      const output = data.toString();
-      stdout += output;
-      console.log(`📤 Deployment output: ${output.trim()}`);
-    });
-
-    deployment.stderr.on('data', (data) => {
-      const error = data.toString();
-      stderr += error;
-      console.log(`⚠️ Deployment warning: ${error.trim()}`);
-    });
-
-    deployment.on('close', (code) => {
-      console.log(`🏁 Deployment process finished with code: ${code}`);
-      
-      if (code === 0) {
-        // Parse successful deployment output
-        try {
-          // Look for contract address and transaction hash in output
-          const contractMatch = stdout.match(/Contract address: (0x[a-fA-F0-9]{40})/);
-          const txHashMatch = stdout.match(/Transaction hash: (0x[a-fA-F0-9]{64})/);
-          
-          if (contractMatch && txHashMatch) {
-            resolve({
-              success: true,
-              tokenAddress: contractMatch[1],
-              txHash: txHashMatch[1],
-              network: network,
-              fullOutput: stdout
-            });
-          } else {
-            // Successful deployment but couldn't parse addresses
-            console.log('⚠️ Deployment succeeded but failed to parse contract details');
-            resolve({
-              success: true,
-              tokenAddress: '0x' + Math.random().toString(16).substr(2, 40), // Fallback
-              txHash: '0x' + Math.random().toString(16).substr(2, 64), // Fallback
-              network: network,
-              fullOutput: stdout,
-              note: 'Deployment succeeded but contract details parsing failed'
-            });
-          }
-        } catch (parseError) {
-          reject(new Error(`Deployment succeeded but output parsing failed: ${parseError.message}`));
-        }
-      } else {
-        // Deployment failed
-        const fullError = stderr || stdout || 'Unknown deployment error';
-        console.log(`❌ Deployment failed with code ${code}:`, fullError);
-        reject(new Error(`Deployment failed: ${fullError}`));
-      }
-    });
-
-    deployment.on('error', (error) => {
-      console.log(`💥 Deployment process error:`, error);
-      reject(new Error(`Failed to start deployment process: ${error.message}`));
-    });
-
-    // Set a timeout for deployment
-    setTimeout(() => {
-      deployment.kill();
-      reject(new Error('Deployment timeout after 2 minutes'));
-    }, 120000); // 2 minutes timeout
-  });
-}
 
 // PUT /api/influencer/:id - Update influencer (Admin only)
 router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
@@ -906,154 +994,154 @@ router.post('/:id/create-token', requireAuth, requireAdmin, async (req, res) => 
     // Log token creation event
     await db.query(`
       INSERT INTO pledge_events (event_type, influencer_address, event_data)
-      VALUES ('token_created', $1, $2)
-    `, [
-      walletAddress,
-      JSON.stringify({
-        created_by: req.dbUser.email,
-        created_at: new Date().toISOString(),
-        influencer_name: influencer.name,
-        token_name: tokenName,
-        token_symbol: tokenSymbol,
-        token_address: tokenAddress,
-        tx_hash: txHash,
-        deployment_type: 'mock'
-      })
-    ]);
-    
-    console.log(`✅ Mock token created successfully for ${influencer.name}`);
-    res.json({
-      success: true,
-      data: {
-        influencer: updateResult.rows[0],
-        tokenAddress: tokenAddress,
-        txHash: txHash
-      },
-      message: `Mock token ${tokenSymbol} created successfully for ${influencer.name}`
-    });
-  } catch (error) {
-    console.error('❌ Error creating mock token:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to create token',
-      details: error.message 
-    });
-  }
+    VALUES ('token_created', $1, $2)
+  `, [
+    walletAddress,
+    JSON.stringify({
+      created_by: req.dbUser.email,
+      created_at: new Date().toISOString(),
+      influencer_name: influencer.name,
+      token_name: tokenName,
+      token_symbol: tokenSymbol,
+      token_address: tokenAddress,
+      tx_hash: txHash,
+      deployment_type: 'mock'
+    })
+  ]);
+  
+  console.log(`✅ Mock token created successfully for ${influencer.name}`);
+  res.json({
+    success: true,
+    data: {
+      influencer: updateResult.rows[0],
+      tokenAddress: tokenAddress,
+      txHash: txHash
+    },
+    message: `Mock token ${tokenSymbol} created successfully for ${influencer.name}`
+  });
+} catch (error) {
+  console.error('❌ Error creating mock token:', error);
+  res.status(500).json({ 
+    success: false, 
+    error: 'Failed to create token',
+    details: error.message 
+  });
+}
 });
 
 // GET /api/influencer/admin/stats - Admin dashboard stats (Admin only)
 router.get('/admin/stats', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    console.log('📊 Fetching admin stats for user:', req.dbUser.email);
+try {
+  console.log('📊 Fetching admin stats for user:', req.dbUser.email);
+  
+  const queries = [
+    // Users statistics
+    db.query(`
+      SELECT 
+        COUNT(*) as total_users,
+        COUNT(CASE WHEN created_at > NOW() - INTERVAL '24 hours' THEN 1 END) as new_users_today,
+        COUNT(CASE WHEN status = 'admin' THEN 1 END) as admin_count,
+        COUNT(CASE WHEN status = 'influencer' THEN 1 END) as influencer_count,
+        COUNT(CASE WHEN status = 'investor' THEN 1 END) as investor_count
+      FROM users
+    `),
     
-    const queries = [
-      // Users statistics
-      db.query(`
-        SELECT 
-          COUNT(*) as total_users,
-          COUNT(CASE WHEN created_at > NOW() - INTERVAL '24 hours' THEN 1 END) as new_users_today,
-          COUNT(CASE WHEN status = 'admin' THEN 1 END) as admin_count,
-          COUNT(CASE WHEN status = 'influencer' THEN 1 END) as influencer_count,
-          COUNT(CASE WHEN status = 'investor' THEN 1 END) as investor_count
-        FROM users
-      `),
-      
-      // Influencers statistics
-      db.query(`
-        SELECT 
-          COUNT(*) as total_influencers,
-          COUNT(CASE WHEN status = 'live' THEN 1 END) as live_tokens,
-          COUNT(CASE WHEN is_approved = true THEN 1 END) as approved_influencers,
-          COUNT(CASE WHEN status = 'pending' AND is_approved = false THEN 1 END) as pending_approvals
-        FROM influencers
-      `),
-      
-      // Pledges statistics
-      db.query(`
-        SELECT 
-          COUNT(*) as total_pledges,
-          SUM(COALESCE(eth_amount, 0)) as total_eth_pledged,
-          SUM(COALESCE(usdc_amount, 0)) as total_usdc_pledged,
-          COUNT(DISTINCT user_address) as unique_pledgers
-        FROM pledges 
-        WHERE has_withdrawn = false
-      `),
-      
-      // Volume calculation
-      db.query(`
-        SELECT 
-          SUM(COALESCE(eth_amount, 0) + COALESCE(usdc_amount, 0) / 2000) * 2000 as total_volume_usd
-        FROM pledges 
-        WHERE has_withdrawn = false
-      `)
-    ];
+    // Influencers statistics
+    db.query(`
+      SELECT 
+        COUNT(*) as total_influencers,
+        COUNT(CASE WHEN status = 'live' THEN 1 END) as live_tokens,
+        COUNT(CASE WHEN is_approved = true THEN 1 END) as approved_influencers,
+        COUNT(CASE WHEN status = 'pending' AND is_approved = false THEN 1 END) as pending_approvals
+      FROM influencers
+    `),
     
-    const [usersResult, influencersResult, pledgesResult, volumeResult] = await Promise.all(queries);
+    // Pledges statistics
+    db.query(`
+      SELECT 
+        COUNT(*) as total_pledges,
+        SUM(COALESCE(eth_amount, 0)) as total_eth_pledged,
+        SUM(COALESCE(usdc_amount, 0)) as total_usdc_pledged,
+        COUNT(DISTINCT user_address) as unique_pledgers
+      FROM pledges 
+      WHERE has_withdrawn = false
+    `),
     
-    const userStats = usersResult.rows[0];
-    const influencerStats = influencersResult.rows[0];
-    const pledgeStats = pledgesResult.rows[0];
-    const volumeStats = volumeResult.rows[0];
-    
-    const totalVolume = parseFloat(volumeStats.total_volume_usd || 0);
-    const totalFees = totalVolume * 0.05; // 5% platform fee
-    
-    const response = {
-      totalInfluencers: parseInt(influencerStats.total_influencers),
-      activeTokens: parseInt(influencerStats.live_tokens), // Updated field name
-      pendingApprovals: parseInt(influencerStats.pending_approvals),
-      totalPledges: parseInt(pledgeStats.total_pledges || 0),
-      totalEthRaised: parseFloat(pledgeStats.total_eth_pledged || 0),
-      totalUsdcRaised: parseFloat(pledgeStats.total_usdc_pledged || 0),
-      totalVolume: totalVolume,
-      totalFees: totalFees,
-      activeUsers24h: parseInt(pledgeStats.unique_pledgers || 0),
-      newUsersToday: parseInt(userStats.new_users_today),
-      approvedInfluencers: parseInt(influencerStats.approved_influencers),
-      totalPledgers: parseInt(pledgeStats.unique_pledgers || 0)
-    };
-    
-    console.log('✅ Admin stats loaded successfully:', response);
-    res.json(response);
-  } catch (error) {
-    console.error('❌ Error fetching admin stats:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch statistics', 
-      details: error.message 
-    });
-  }
+    // Volume calculation
+    db.query(`
+      SELECT 
+        SUM(COALESCE(eth_amount, 0) + COALESCE(usdc_amount, 0) / 2000) * 2000 as total_volume_usd
+      FROM pledges 
+      WHERE has_withdrawn = false
+    `)
+  ];
+  
+  const [usersResult, influencersResult, pledgesResult, volumeResult] = await Promise.all(queries);
+  
+  const userStats = usersResult.rows[0];
+  const influencerStats = influencersResult.rows[0];
+  const pledgeStats = pledgesResult.rows[0];
+  const volumeStats = volumeResult.rows[0];
+  
+  const totalVolume = parseFloat(volumeStats.total_volume_usd || 0);
+  const totalFees = totalVolume * 0.05; // 5% platform fee
+  
+  const response = {
+    totalInfluencers: parseInt(influencerStats.total_influencers),
+    activeTokens: parseInt(influencerStats.live_tokens), // Updated field name
+    pendingApprovals: parseInt(influencerStats.pending_approvals),
+    totalPledges: parseInt(pledgeStats.total_pledges || 0),
+    totalEthRaised: parseFloat(pledgeStats.total_eth_pledged || 0),
+    totalUsdcRaised: parseFloat(pledgeStats.total_usdc_pledged || 0),
+    totalVolume: totalVolume,
+    totalFees: totalFees,
+    activeUsers24h: parseInt(pledgeStats.unique_pledgers || 0),
+    newUsersToday: parseInt(userStats.new_users_today),
+    approvedInfluencers: parseInt(influencerStats.approved_influencers),
+    totalPledgers: parseInt(pledgeStats.unique_pledgers || 0)
+  };
+  
+  console.log('✅ Admin stats loaded successfully:', response);
+  res.json(response);
+} catch (error) {
+  console.error('❌ Error fetching admin stats:', error);
+  res.status(500).json({ 
+    error: 'Failed to fetch statistics', 
+    details: error.message 
+  });
+}
 });
 
 // DELETE /api/influencer/:id - Delete influencer (Admin only)
 router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await db.query(
-      'DELETE FROM influencers WHERE id = $1 RETURNING id, name',
-      [id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Influencer not found' 
-      });
-    }
-    
-    res.json({ 
-      success: true,
-      message: 'Influencer deleted successfully', 
-      data: { id: result.rows[0].id, name: result.rows[0].name }
-    });
-  } catch (error) {
-    console.error('Error deleting influencer:', error);
-    res.status(500).json({ 
+try {
+  const { id } = req.params;
+  
+  const result = await db.query(
+    'DELETE FROM influencers WHERE id = $1 RETURNING id, name',
+    [id]
+  );
+  
+  if (result.rows.length === 0) {
+    return res.status(404).json({ 
       success: false, 
-      error: 'Failed to delete influencer',
-      details: error.message 
+      error: 'Influencer not found' 
     });
   }
+  
+  res.json({ 
+    success: true,
+    message: 'Influencer deleted successfully', 
+    data: { id: result.rows[0].id, name: result.rows[0].name }
+  });
+} catch (error) {
+  console.error('Error deleting influencer:', error);
+  res.status(500).json({ 
+    success: false, 
+    error: 'Failed to delete influencer',
+    details: error.message 
+  });
+}
 });
 
 // ======================
@@ -1062,167 +1150,157 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
 
 // GET /api/influencer/handle/:handle - Get influencer by handle (PUBLIC)
 router.get('/handle/:handle', async (req, res) => {
-  try {
-    let { handle } = req.params;
-    
-    // Ensure handle starts with @
-    if (!handle.startsWith('@')) {
-      handle = '@' + handle;
-    }
-    
-    const result = await db.query(
-      'SELECT * FROM influencers WHERE handle = $1',
-      [handle]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Influencer not found' 
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Error fetching influencer by handle:', error);
-    res.status(500).json({ 
+try {
+  let { handle } = req.params;
+  
+  // Ensure handle starts with @
+  if (!handle.startsWith('@')) {
+    handle = '@' + handle;
+  }
+  
+  const result = await db.query(
+    'SELECT * FROM influencers WHERE handle = $1',
+    [handle]
+  );
+  
+  if (result.rows.length === 0) {
+    return res.status(404).json({ 
       success: false, 
-      error: 'Failed to fetch influencer',
-      details: error.message 
+      error: 'Influencer not found' 
     });
   }
+  
+  res.json({
+    success: true,
+    data: result.rows[0]
+  });
+} catch (error) {
+  console.error('Error fetching influencer by handle:', error);
+  res.status(500).json({ 
+    success: false, 
+    error: 'Failed to fetch influencer',
+    details: error.message 
+  });
+}
 });
 
 // GET /api/influencer/address/:address - Get influencer by wallet address (PUBLIC)
 router.get('/address/:address', async (req, res) => {
-  try {
-    const { address } = req.params;
-    
-    const result = await db.query(
-      'SELECT * FROM influencers WHERE wallet_address = $1',
-      [address]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Influencer not found' 
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Error fetching influencer by address:', error);
-    res.status(500).json({ 
+try {
+  const { address } = req.params;
+  
+  const result = await db.query(
+    'SELECT * FROM influencers WHERE wallet_address = $1',
+    [address]
+  );
+  
+  if (result.rows.length === 0) {
+    return res.status(404).json({ 
       success: false, 
-      error: 'Failed to fetch influencer',
-      details: error.message 
+      error: 'Influencer not found' 
     });
   }
+  
+  res.json({
+    success: true,
+    data: result.rows[0]
+  });
+} catch (error) {
+  console.error('Error fetching influencer by address:', error);
+  res.status(500).json({ 
+    success: false, 
+    error: 'Failed to fetch influencer',
+    details: error.message 
+  });
+}
 });
 
 // GET /api/influencer/coin/:identifier - Get coin details by name, symbol, or ID (PUBLIC)
 router.get('/coin/:identifier', async (req, res) => {
-  try {
-    const { identifier } = req.params;
-    console.log('🪙 Fetching coin details for:', identifier);
-    
-    let query;
-    let params;
-    
-    // Check if identifier is a number (ID) or string (name/symbol)
-    if (!isNaN(parseInt(identifier))) {
-      // Search by ID
-      query = 'SELECT * FROM influencers WHERE id = $1';
-      params = [parseInt(identifier)];
-    } else {
-      // Search by name, handle, or symbol (case insensitive)
-      query = `
-        SELECT * FROM influencers 
-        WHERE LOWER(name) = LOWER($1) 
-           OR LOWER(handle) = LOWER($2)
-           OR LOWER(token_symbol) = LOWER($1)
-           OR LOWER(REPLACE(name, ' ', '')) = LOWER($1)
-      `;
-      params = [identifier, `@${identifier.toLowerCase()}`];
-    }
-    
-    const result = await db.query(query, params);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Coin not found',
-        identifier: identifier
-      });
-    }
-    
-    const influencer = result.rows[0];
-    
-    // Transform for trading interface
-    const coinData = {
-      id: influencer.id,
-      name: influencer.name,
-      handle: influencer.handle || `@${influencer.name.toLowerCase().replace(/\s+/g, '')}`,
-      tokenName: influencer.token_name || `${influencer.name} Token`,
-      symbol: influencer.token_symbol || influencer.name.substring(0, 5).toUpperCase().replace(/\s/g, ''),
-      avatar: influencer.avatar_url,
-      category: influencer.category,
-      description: influencer.description,
-      followers: influencer.followers_count ? formatFollowers(influencer.followers_count) : null,
-      verified: influencer.verified || false,
-      
-      // Trading data
-      currentPrice: influencer.current_price || 0.0018,
-      priceChange24h: influencer.price_change_24h || 12.4,
-      marketCap: influencer.market_cap || 1800000,
-      volume24h: influencer.volume_24h || 89234,
-      totalSupply: influencer.token_total_supply || 1000000,
-      circulatingSupply: Math.floor((influencer.token_total_supply || 1000000) * 0.7),
-      
-      // Contract info
-      contractAddress: influencer.token_address || "0x9c742435Cc6634C0532925a3b8D6Ac9C43F533e3E",
-      poolAddress: influencer.liquidity_pool_address,
-      liquidityLocked: true,
-      lockUntil: "2025-12-31",
-      
-      // Status
-      isLive: influencer.status === 'live' || !!influencer.launched_at,
-      etherscanVerified: true,
-      launchedAt: influencer.launched_at
-    };
-    
-    console.log('✅ Coin details found:', coinData.name, '- Live:', coinData.isLive);
-    
-    res.json({
-      success: true,
-      data: coinData
-    });
-    
-  } catch (error) {
-    console.error('❌ Error fetching coin details:', error);
-    res.status(500).json({ 
+try {
+  const { identifier } = req.params;
+  console.log('🪙 Fetching coin details for:', identifier);
+  
+  let query;
+  let params;
+  
+  // Check if identifier is a number (ID) or string (name/symbol)
+  if (!isNaN(parseInt(identifier))) {
+    // Search by ID
+    query = 'SELECT * FROM influencers WHERE id = $1';
+    params = [parseInt(identifier)];
+  } else {
+    // Search by name, handle, or symbol (case insensitive)
+    query = `
+      SELECT * FROM influencers 
+      WHERE LOWER(name) = LOWER($1) 
+         OR LOWER(handle) = LOWER($2)
+         OR LOWER(token_symbol) = LOWER($1)
+         OR LOWER(REPLACE(name, ' ', '')) = LOWER($1)
+    `;
+    params = [identifier, `@${identifier.toLowerCase()}`];
+  }
+  
+  const result = await db.query(query, params);
+  
+  if (result.rows.length === 0) {
+    return res.status(404).json({ 
       success: false, 
-      error: 'Failed to fetch coin details',
-      details: error.message 
+      error: 'Coin not found',
+      identifier: identifier
     });
   }
-});
-
-// Helper function to format followers
-function formatFollowers(count) {
-  if (count >= 1000000) {
-    return (count / 1000000).toFixed(1) + 'M';
-  } else if (count >= 1000) {
-    return (count / 1000).toFixed(1) + 'K';
-  }
-  return count.toString();
+  
+  const influencer = result.rows[0];
+  
+  // Transform for trading interface
+  const coinData = {
+    id: influencer.id,
+    name: influencer.name,
+    handle: influencer.handle || `@${influencer.name.toLowerCase().replace(/\s+/g, '')}`,
+    tokenName: influencer.token_name || `${influencer.name} Token`,
+    symbol: influencer.token_symbol || influencer.name.substring(0, 5).toUpperCase().replace(/\s/g, ''),
+    avatar: influencer.avatar_url,
+    category: influencer.category,
+    description: influencer.description,
+    followers: influencer.followers_count ? formatFollowers(influencer.followers_count) : null,
+    verified: influencer.verified || false,
+    
+    // Trading data
+    currentPrice: influencer.current_price || 0.0018,
+    priceChange24h: influencer.price_change_24h || 12.4,
+    marketCap: influencer.market_cap || 1800000,
+    volume24h: influencer.volume_24h || 89234,
+    totalSupply: influencer.token_total_supply || 1000000,
+    circulatingSupply: Math.floor((influencer.token_total_supply || 1000000) * 0.7),
+    
+    // Contract info
+    contractAddress: influencer.token_address || "0x9c742435Cc6634C0532925a3b8D6Ac9C43F533e3E",
+    poolAddress: influencer.liquidity_pool_address,
+    liquidityLocked: true,
+    lockUntil: "2025-12-31",
+    
+    // Status
+    isLive: influencer.status === 'live' || !!influencer.launched_at,
+    etherscanVerified: true,
+    launchedAt: influencer.launched_at
+  };
+  
+  console.log('✅ Coin details found:', coinData.name, '- Live:', coinData.isLive);
+  
+  res.json({
+    success: true,
+    data: coinData
+  });
+  
+} catch (error) {
+  console.error('❌ Error fetching coin details:', error);
+  res.status(500).json({ 
+    success: false, 
+    error: 'Failed to fetch coin details',
+    details: error.message 
+  });
 }
+});
 
 module.exports = router;

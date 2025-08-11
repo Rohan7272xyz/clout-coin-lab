@@ -18,10 +18,10 @@ contract InfluencerToken is ERC20, Ownable {
     ) ERC20(name, symbol) Ownable(_liquidityWallet) {
         influencerWallet = _influencerWallet;
         
-        // Mint 30% to influencer
+        // Mint 30% to influencer - FIXED: Added underscores
         _mint(_influencerWallet, INFLUENCER_ALLOCATION);
         
-        // Mint 70% to liquidity wallet (deployer)
+        // Mint 70% to liquidity wallet (deployer) - FIXED: Added underscores  
         _mint(_liquidityWallet, LIQUIDITY_ALLOCATION);
     }
     
