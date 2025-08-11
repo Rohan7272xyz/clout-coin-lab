@@ -1,4 +1,4 @@
-// Backend/routes/influencerRoutes.js - Phase 4B: Real Token Deployment Integration
+// Backend/routes/influencerRoutes.js - Phase 4B: Real Token Deployment Integration + Enhanced Coin Details
 const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
@@ -674,9 +674,10 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
           contract_address, 
           total_supply, 
           chain_id,
+          network,
           launched_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
         ON CONFLICT (influencer_id) DO UPDATE SET
           name = EXCLUDED.name,
           ticker = EXCLUDED.ticker,
@@ -684,6 +685,7 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
           contract_address = EXCLUDED.contract_address,
           total_supply = EXCLUDED.total_supply,
           chain_id = EXCLUDED.chain_id,
+          network = EXCLUDED.network,
           launched_at = EXCLUDED.launched_at,
           updated_at = CURRENT_TIMESTAMP
       `, [
@@ -693,7 +695,8 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
         'live',                               // status
         deploymentResult.tokenAddress,        // contract_address
         totalSupply,                          // total_supply
-        deploymentResult.chainId || 84532     // chain_id (Base Sepolia)
+        deploymentResult.chainId || 84532,    // chain_id (Base Sepolia)
+        network                               // network
       ]);
       
       console.log(`✅ Token record created in database for ${tokenName}`);
@@ -1215,92 +1218,120 @@ try {
 }
 });
 
-// GET /api/influencer/coin/:identifier - Get coin details by name, symbol, or ID (PUBLIC)
+// 🔥 ENHANCED: GET /api/influencer/coin/:identifier - Get coin details with database + tokens table integration
 router.get('/coin/:identifier', async (req, res) => {
-try {
-  const { identifier } = req.params;
-  console.log('🪙 Fetching coin details for:', identifier);
-  
-  let query;
-  let params;
-  
-  // Check if identifier is a number (ID) or string (name/symbol)
-  if (!isNaN(parseInt(identifier))) {
-    // Search by ID
-    query = 'SELECT * FROM influencers WHERE id = $1';
-    params = [parseInt(identifier)];
-  } else {
-    // Search by name, handle, or symbol (case insensitive)
-    query = `
-      SELECT * FROM influencers 
-      WHERE LOWER(name) = LOWER($1) 
-         OR LOWER(handle) = LOWER($2)
-         OR LOWER(token_symbol) = LOWER($1)
-         OR LOWER(REPLACE(name, ' ', '')) = LOWER($1)
+  try {
+    const { identifier } = req.params;
+    console.log('🪙 Fetching coin details for:', identifier);
+    
+    let query;
+    let params;
+    
+    // Enhanced query to include tokens table data
+    const baseQuery = `
+      SELECT 
+        i.*,
+        t.contract_address,
+        t.network,
+        t.status as token_status,
+        t.total_supply as token_total_supply,
+        t.chain_id,
+        t.launched_at as token_launched_at
+      FROM influencers i
+      LEFT JOIN tokens t ON i.id = t.influencer_id
     `;
-    params = [identifier, `@${identifier.toLowerCase()}`];
-  }
-  
-  const result = await db.query(query, params);
-  
-  if (result.rows.length === 0) {
-    return res.status(404).json({ 
+    
+    // Check if identifier is a number (ID) or string (name/symbol)
+    if (!isNaN(parseInt(identifier))) {
+      // Search by ID
+      query = baseQuery + ' WHERE i.id = $1';
+      params = [parseInt(identifier)];
+    } else {
+      // Search by name, handle, or symbol (case insensitive)
+      query = baseQuery + `
+        WHERE LOWER(i.name) = LOWER($1) 
+           OR LOWER(i.handle) = LOWER($2)
+           OR LOWER(i.token_symbol) = LOWER($1)
+           OR LOWER(REPLACE(i.name, ' ', '')) = LOWER($1)
+      `;
+      params = [identifier, `@${identifier.toLowerCase()}`];
+    }
+    
+    const result = await db.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Token not found',
+        identifier: identifier,
+        message: 'No token found with that symbol, name, or handle'
+      });
+    }
+    
+    const row = result.rows[0];
+    
+    // 🔥 ENHANCED: Return data structure that matches useRealTokenData expectations
+    const coinData = {
+      // Basic influencer info
+      id: row.id,
+      name: row.name,
+      handle: row.handle || `@${row.name.toLowerCase().replace(/\s+/g, '')}`,
+      token_name: row.token_name || `${row.name} Token`,
+      token_symbol: row.token_symbol || row.name.substring(0, 5).toUpperCase().replace(/\s/g, ''),
+      avatar: row.avatar_url,
+      category: row.category || 'general',
+      description: row.description || '',
+      followers: row.followers_count ? formatFollowers(row.followers_count) : '0',
+      verified: row.verified || false,
+      website: row.website,
+      headquarters: row.headquarters,
+      
+      // Status info - CRITICAL for frontend detection
+      status: row.status, // 'live', 'pending', etc.
+      contract_address: row.contract_address, // From tokens table
+      network: row.network || 'base-sepolia', // From tokens table
+      wallet_address: row.wallet_address,
+      launched_at: row.launched_at,
+      
+      // Token metadata
+      total_supply: row.token_total_supply || 1000000,
+      chain_id: row.chain_id || 84532,
+      
+      // Legacy fields for backward compatibility
+      tokenName: row.token_name || `${row.name} Token`,
+      symbol: row.token_symbol || row.name.substring(0, 5).toUpperCase().replace(/\s/g, ''),
+      currentPrice: row.current_price || 0.000001,
+      priceChange24h: row.price_change_24h || 0,
+      marketCap: row.market_cap || 1000000,
+      volume24h: row.volume_24h || 0,
+      totalSupply: row.token_total_supply || 1000000,
+      circulatingSupply: Math.floor((row.token_total_supply || 1000000) * 0.7),
+      contractAddress: row.contract_address,
+      isLive: row.status === 'live' && !!row.contract_address,
+      etherscanVerified: row.status === 'live' && !!row.contract_address,
+      launchedAt: row.launched_at
+    };
+    
+    console.log('✅ Coin details found:', {
+      name: coinData.name,
+      symbol: coinData.token_symbol,
+      status: coinData.status,
+      isLive: coinData.isLive,
+      contract: coinData.contract_address,
+      network: coinData.network
+    });
+    
+    res.json(coinData);
+    
+  } catch (error) {
+    console.error('❌ Error fetching coin details:', error);
+    res.status(500).json({ 
       success: false, 
-      error: 'Coin not found',
-      identifier: identifier
+      error: 'Failed to fetch coin details',
+      details: error.message,
+      identifier: req.params.identifier
     });
   }
-  
-  const influencer = result.rows[0];
-  
-  // Transform for trading interface
-  const coinData = {
-    id: influencer.id,
-    name: influencer.name,
-    handle: influencer.handle || `@${influencer.name.toLowerCase().replace(/\s+/g, '')}`,
-    tokenName: influencer.token_name || `${influencer.name} Token`,
-    symbol: influencer.token_symbol || influencer.name.substring(0, 5).toUpperCase().replace(/\s/g, ''),
-    avatar: influencer.avatar_url,
-    category: influencer.category,
-    description: influencer.description,
-    followers: influencer.followers_count ? formatFollowers(influencer.followers_count) : null,
-    verified: influencer.verified || false,
-    
-    // Trading data
-    currentPrice: influencer.current_price || 0.0018,
-    priceChange24h: influencer.price_change_24h || 12.4,
-    marketCap: influencer.market_cap || 1800000,
-    volume24h: influencer.volume_24h || 89234,
-    totalSupply: influencer.token_total_supply || 1000000,
-    circulatingSupply: Math.floor((influencer.token_total_supply || 1000000) * 0.7),
-    
-    // Contract info
-    contractAddress: influencer.token_address || "0x9c742435Cc6634C0532925a3b8D6Ac9C43F533e3E",
-    poolAddress: influencer.liquidity_pool_address,
-    liquidityLocked: true,
-    lockUntil: "2025-12-31",
-    
-    // Status
-    isLive: influencer.status === 'live' || !!influencer.launched_at,
-    etherscanVerified: true,
-    launchedAt: influencer.launched_at
-  };
-  
-  console.log('✅ Coin details found:', coinData.name, '- Live:', coinData.isLive);
-  
-  res.json({
-    success: true,
-    data: coinData
-  });
-  
-} catch (error) {
-  console.error('❌ Error fetching coin details:', error);
-  res.status(500).json({ 
-    success: false, 
-    error: 'Failed to fetch coin details',
-    details: error.message 
-  });
-}
 });
 
 module.exports = router;
