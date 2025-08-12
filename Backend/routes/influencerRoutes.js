@@ -4,6 +4,7 @@ const router = express.Router();
 const db = require('../database/db');
 const admin = require('firebase-admin');
 const tokenCreationService = require('../services/tokenCreationService');
+const liquidityAutomationService = require('../services/liquidityAutomationService');
 const { spawn } = require('child_process');
 const path = require('path');
 
@@ -1330,6 +1331,91 @@ router.get('/coin/:identifier', async (req, res) => {
       error: 'Failed to fetch coin details',
       details: error.message,
       identifier: req.params.identifier
+    });
+  }
+});
+
+
+// NEW ENDPOINT: Check liquidity status for any token
+router.get('/:id/liquidity-status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const liquidityStatus = await liquidityAutomationService.getLiquidityStatus(id);
+    
+    res.json({
+      success: true,
+      data: liquidityStatus
+    });
+    
+  } catch (error) {
+    console.error('Error getting liquidity status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get liquidity status',
+      details: error.message
+    });
+  }
+});
+
+// NEW ENDPOINT: Manually trigger liquidity creation for existing tokens
+router.post('/:id/create-liquidity', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { liquiditySettings = {} } = req.body;
+    
+    // Get token details
+    const tokenResult = await db.query(`
+      SELECT 
+        i.name, i.token_name, i.token_symbol, i.wallet_address,
+        t.contract_address, t.network, t.total_supply
+      FROM influencers i
+      JOIN tokens t ON i.id = t.influencer_id
+      WHERE i.id = $1
+    `, [id]);
+    
+    if (tokenResult.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Token not found or not deployed' 
+      });
+    }
+    
+    const token = tokenResult.rows[0];
+    
+    // Check if liquidity already exists
+    const liquidityStatus = await liquidityAutomationService.getLiquidityStatus(id);
+    if (liquidityStatus.hasLiquidity) {
+      return res.status(400).json({
+        success: false,
+        error: 'Liquidity already exists for this token',
+        poolAddress: liquidityStatus.poolAddress
+      });
+    }
+    
+    // Create liquidity
+    const liquidityResult = await liquidityAutomationService.createLiquidityForToken({
+      tokenAddress: token.contract_address,
+      tokenSymbol: token.token_symbol,
+      tokenName: token.token_name,
+      totalSupply: token.total_supply,
+      network: token.network,
+      influencerId: id,
+      customSettings: liquiditySettings
+    });
+    
+    res.json({
+      success: true,
+      data: liquidityResult,
+      message: `Liquidity created successfully for ${token.token_symbol}`
+    });
+    
+  } catch (error) {
+    console.error('Error creating manual liquidity:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create liquidity',
+      details: error.message
     });
   }
 });

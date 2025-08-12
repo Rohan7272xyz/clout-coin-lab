@@ -7,7 +7,7 @@ const { Pool } = require('pg');
 const config = {
   host: process.env.PG_HOST || 'localhost',
   user: process.env.PG_USER || 'postgres',
-  password: process.env.PG_PASSWORD || 'BloeP5590uqPr',
+  password: process.env.PG_PASSWORD || 'LinT8ihor62_',
   database: process.env.PG_DATABASE || 'TokenFactory',
   port: parseInt(process.env.PG_PORT) || 5432,
   
