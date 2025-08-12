@@ -71,7 +71,7 @@ const useRealTokenData = (tokenId: string) => {
 
       console.log(`🔍 Fetching real data for token: ${tokenId}`);
       
-      const response = await fetch(`/api/influencer/coin/${tokenId}`);
+      const response = await fetch(`http://localhost:3000/api/influencer/coin/${tokenId}`);
       if (!response.ok) {
         throw new Error(`Token not found: ${response.status}`);
       }
@@ -87,7 +87,7 @@ const useRealTokenData = (tokenId: string) => {
         console.log(`🔗 Fetching live blockchain data for contract: ${dbData.contract_address}`);
         
         try {
-          const contractResponse = await fetch(`/api/contract/analytics/${dbData.contract_address}?network=${dbData.network || 'base-sepolia'}`);
+          const contractResponse = await fetch(`http://localhost:3000/api/contract/analytics/${dbData.contract_address}...`);
           
           if (contractResponse.ok) {
             liveContractData = await contractResponse.json();
