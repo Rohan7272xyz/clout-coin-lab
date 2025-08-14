@@ -1,653 +1,532 @@
-// src/pages/CoinFluenceRobot.tsx
-// Fixed version that only shows tips when hovering over buttons/interactive elements
-// Now excludes sign-in and about pages
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Bot } from 'lucide-react';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Bot, X, HelpCircle, Eye, EyeOff, Sparkles, Zap } from 'lucide-react';
-
-// Component information database - customize this for your specific needs
-const COMPONENT_INFO = {
-  // Navigation & Header
-  'header': {
-    title: 'Navigation Header',
-    description: 'Main navigation with user account controls and wallet connection',
-    tips: 'Click your profile to access dashboard or connect wallet to start investing'
-  },
-  'nav-link': {
-    title: 'Navigation Link',
-    description: 'Navigate between different sections of CoinFluence',
-    tips: 'Explore Influencers to see all available tokens, or About to learn more'
-  },
-  'influencers-nav': {
-    title: 'Influencers Page',
-    description: 'Browse all available influencer tokens and investment opportunities',
-    tips: 'See live tokens you can trade now, plus upcoming launches you can show interest in'
-  },
-  'about-nav': {
-    title: 'About CoinFluence',
-    description: 'Learn about the platform, how it works, and our mission',
-    tips: 'Perfect starting point to understand how influencer token investing works'
-  },
-  'wallet-button': {
-    title: 'Wallet Connection',
-    description: 'Connect your crypto wallet to start investing in influencer tokens',
-    tips: 'Required for pledging ETH/USDC to upcoming influencers'
-  },
-  'sign-in-button': {
-    title: 'Account Access',
-    description: 'Sign in to track your investments and access personalized features',
-    tips: 'Create an account to save your portfolio and get notifications'
-  },
-  'dashboard-button': {
-    title: 'Dashboard Access',
-    description: 'View your portfolio, track investments, and manage account settings',
-    tips: 'Your central hub for all investment activity and performance'
-  },
-
-  // Hero & Main Content
-  'hero-section': {
-    title: 'Hero Section',
-    description: 'Main landing area showcasing CoinFluence platform benefits',
-    tips: 'Start by clicking "Pre-Invest Now" to explore available opportunities'
-  },
-  'pre-invest-button': {
-    title: 'Pre-Investment Portal',
-    description: 'Access early investment opportunities in upcoming influencer tokens',
-    tips: 'Get exclusive access before tokens go live on the market'
-  },
-  'cta-button': {
-    title: 'Call to Action',
-    description: 'Primary action button to start your investing journey',
-    tips: 'Click to begin exploring investment opportunities'
-  },
-
-  // Cards & Components
-  'influencer-card': {
-    title: 'Influencer Investment Card',
-    description: 'Shows investment opportunity with progress, stats, and current status',
-    tips: 'Click to invest or view detailed information about this influencer'
-  },
-  'coin-card': {
-    title: 'Token Trading Card',
-    description: 'Live trading information for launched influencer tokens',
-    tips: 'Shows real-time price, volume, and trading opportunities'
-  },
-  'pledge-card': {
-    title: 'Pre-Investment Card',
-    description: 'Show interest in upcoming tokens before they launch',
-    tips: 'Pledge ETH/USDC to secure early access when token goes live'
-  },
-  'progress-bar': {
-    title: 'Interest Progress',
-    description: 'Shows how close an influencer is to meeting their funding threshold',
-    tips: 'When target is reached, the influencer may approve token creation'
-  },
-  'status-badge': {
-    title: 'Token Status',
-    description: 'Current state of the influencer token (Live, Approved, Pledging, etc.)',
-    tips: 'Live = tradeable now, Approved = launching soon, Pledging = accepting interest'
-  },
-
-  // Buttons & Actions
-  'trade-button': {
-    title: 'Trade Token',
-    description: 'Buy or sell this influencer token on the live market',
-    tips: 'Requires wallet connection and sufficient ETH balance'
-  },
-  'pledge-button': {
-    title: 'Show Interest',
-    description: 'Pledge ETH/USDC to support this influencer before token launch',
-    tips: 'Early supporters often get better prices when token goes live'
-  },
-  'follow-button': {
-    title: 'Follow Updates',
-    description: 'Get notifications about this influencer\'s token progress',
-    tips: 'Stay informed about price changes and important announcements'
-  },
-  'gift-button': {
-    title: 'Gift Tokens',
-    description: 'Send tokens to other users as gifts or rewards',
-    tips: 'Great way to introduce friends to your favorite influencer tokens'
-  },
-
-  // Data & Stats
-  'price-display': {
-    title: 'Token Price',
-    description: 'Current market price of this influencer token',
-    tips: 'Updates in real-time during trading hours'
-  },
-  'volume-display': {
-    title: 'Trading Volume',
-    description: '24-hour trading volume showing market activity',
-    tips: 'Higher volume indicates more active trading and liquidity'
-  },
-  'market-cap': {
-    title: 'Market Capitalization',
-    description: 'Total value of all tokens in circulation',
-    tips: 'Calculated as: Current Price × Circulating Supply'
-  },
-  'holder-count': {
-    title: 'Token Holders',
-    description: 'Number of unique wallets holding this token',
-    tips: 'More holders typically indicates stronger community support'
-  },
-  'followers-count': {
-    title: 'Follower Count',
-    description: 'Social media followers of this influencer',
-    tips: 'Larger following may correlate with token demand'
-  },
-
-  // Forms & Inputs
-  'amount-input': {
-    title: 'Investment Amount',
-    description: 'Enter how much ETH or USDC you want to invest',
-    tips: 'Start small if you\'re new to crypto investing'
-  },
-  'currency-selector': {
-    title: 'Currency Selection',
-    description: 'Choose between ETH or USDC for your investment',
-    tips: 'USDC is a stable coin, ETH value fluctuates with the market'
-  },
-  'search-input': {
-    title: 'Search Function',
-    description: 'Find specific influencers or tokens quickly',
-    tips: 'Search by name, symbol, or category to find what you\'re looking for'
-  },
-
-  // Dashboard Elements
-  'portfolio-value': {
-    title: 'Portfolio Value',
-    description: 'Total current value of all your token holdings',
-    tips: 'Updates in real-time as token prices change'
-  },
-  'profit-loss': {
-    title: 'Profit & Loss',
-    description: 'How much you\'ve gained or lost on your investments',
-    tips: 'Green = profit, Red = loss. Remember: only a loss if you sell!'
-  },
-  'holdings-table': {
-    title: 'Your Holdings',
-    description: 'Detailed view of all your token investments',
-    tips: 'Click on any holding to view detailed performance and trading options'
-  },
-
-  // Charts & Graphs
-  'price-chart': {
-    title: 'Price Chart',
-    description: 'Visual representation of token price movement over time',
-    tips: 'Use different timeframes to analyze short and long-term trends'
-  },
-  'performance-chart': {
-    title: 'Performance Chart',
-    description: 'Shows how your investment has performed over time',
-    tips: 'Look for trends to make informed decisions about buying or selling'
-  },
-
-  // Footer & Legal
-  'footer': {
-    title: 'Site Footer',
-    description: 'Important links, legal information, and platform details',
-    tips: 'Find terms of service, privacy policy, and contact information here'
-  },
-  'social-links': {
-    title: 'Social Media',
-    description: 'Follow CoinFluence on social platforms for updates',
-    tips: 'Get the latest news, tips, and community discussions'
-  },
-
-  // Admin specific
-  'admin-button': {
-    title: 'Admin Function',
-    description: 'Administrative function for managing the platform',
-    tips: 'Only available to platform administrators'
-  },
-  'create-card-button': {
-    title: 'Create Influencer Card',
-    description: 'Create a new influencer marketing card for the platform',
-    tips: 'This creates the initial card that appears on the pre-invest page'
-  },
-  'deploy-token-button': {
-    title: 'Deploy Token',
-    description: 'Deploy an actual blockchain token for an approved influencer',
-    tips: 'This creates a real ERC-20 token that can be traded'
-  },
-
-  // Default fallback
-  'default': {
-    title: 'Interactive Element',
-    description: 'This element is part of the CoinFluence platform interface',
-    tips: 'Hover over different elements to learn more about how they work'
-  }
+// CSS Variables for CoinFluence theme
+const cfTheme = {
+  '--cf-bg': '#0b0f10',
+  '--cf-surface': '#0f1417',
+  '--cf-grid': 'rgba(255,255,255,0.04)',
+  '--cf-green': '#22e384',
+  '--cf-green-2': '#13c36b',
+  '--cf-text': '#e9f4ee',
+  '--cf-muted': '#9fb6ac',
+  '--cf-border': 'rgba(255,255,255,0.08)',
+  '--cf-shadow': '0 10px 30px rgba(34,227,132,0.15)'
 };
 
-// Visit tracking utilities
-const STORAGE_KEY = 'coinfluence-robot-visits';
-const ROBOT_STATE_KEY = 'coinfluence-robot-state';
-
-// Pages where the robot should NOT appear
-const EXCLUDED_PAGES = ['/signin', '/about'];
-
-const getVisitCount = (): number => {
-  try {
-    return parseInt(localStorage.getItem(STORAGE_KEY) || '0');
-  } catch {
-    return 0;
-  }
-};
-
-const incrementVisitCount = (): number => {
-  try {
-    const current = getVisitCount();
-    localStorage.setItem(STORAGE_KEY, String(current + 1));
-    return current + 1;
-  } catch {
-    return 1;
-  }
-};
-
-interface RobotState {
-  isMinimized: boolean;
-  hasSeenIntro: boolean;
-}
-
-const getRobotState = (): RobotState => {
-  try {
-    const state = localStorage.getItem(ROBOT_STATE_KEY);
-    return state ? JSON.parse(state) : { isMinimized: false, hasSeenIntro: false };
-  } catch {
-    return { isMinimized: false, hasSeenIntro: false };
-  }
-};
-
-const saveRobotState = (state: RobotState): void => {
-  try {
-    localStorage.setItem(ROBOT_STATE_KEY, JSON.stringify(state));
-  } catch {
-    // Ignore storage errors
-  }
-};
-
-interface ComponentInfo {
-  title: string;
-  description: string;
-  tips: string;
-}
+// Tip registry - maps selectors to tip content
+const CF_TIP_REGISTRY = [
+  { selector: 'button[data-cf-tip]', tip: null }, // Will use data-cf-tip value
+  { selector: '.btn-primary', tip: 'Click to proceed.' },
+  { selector: '.btn-secondary', tip: 'This is a secondary action that provides an alternative option for users.' },
+  { selector: '[href*="pre-invest"]', tip: 'Access early investment opportunities in upcoming influencer tokens before they go live.' },
+  { selector: '[href*="influencers"]', tip: 'Browse all available influencer tokens and investment opportunities.' },
+  { selector: '[href*="about"]', tip: 'Learn about CoinFluence and how the platform works.' },
+  { selector: 'button[aria-label*="Connect"]', tip: 'Connect your crypto wallet to start investing.' },
+  { selector: 'button[aria-label*="Sign"]', tip: 'Sign in to access your portfolio and saved preferences.' },
+  { selector: '.trade-button', tip: 'Buy or sell this influencer token on the live market with real-time pricing.' },
+  { selector: '.pledge-button', tip: 'Show interest in this upcoming token before launch.' },
+  { selector: '.follow-button', tip: 'Get notifications about this influencer\'s updates.' },
+  { selector: '.wallet-button', tip: 'Connect wallet to fund trades and access features.' }
+];
 
 const CoinFluenceRobot: React.FC = () => {
-  const location = useLocation();
-  const [isVisible, setIsVisible] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-  const [currentInfo, setCurrentInfo] = useState<ComponentInfo | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [justMinimized, setJustMinimized] = useState(false);
+  const [currentTip, setCurrentTip] = useState('');
   const [visitCount, setVisitCount] = useState(0);
-  const [robotState, setRobotState] = useState<RobotState>({ isMinimized: false, hasSeenIntro: false });
-  const [showIntro, setShowIntro] = useState(false);
-  const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typedText, setTypedText] = useState('');
+  const [showContent, setShowContent] = useState(false);
+  const [isContentFadingOut, setIsContentFadingOut] = useState(false);
+  
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const graceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const currentHoveredElement = useRef<Element | null>(null);
+  const currentTypingText = useRef<string>(''); // Track what we're currently typing
 
-  // Check if current page is excluded
-  const isCurrentPageExcluded = EXCLUDED_PAGES.includes(location.pathname);
-
-  // Initialize on mount
+  // Visit tracking
   useEffect(() => {
-    const visits = incrementVisitCount();
-    const savedState = getRobotState();
+    const LS_VISITS = 'cf_visit_count';
+    const SS_STATE = 'cf_bot_state';
     
+    // Increment visit count
+    const visits = parseInt(localStorage.getItem(LS_VISITS) || '0') + 1;
+    localStorage.setItem(LS_VISITS, String(visits));
     setVisitCount(visits);
-    setRobotState(savedState);
     
-    // Don't show robot on excluded pages
-    if (isCurrentPageExcluded) {
-      setIsVisible(false);
+    // Determine initial state
+    const sessionState = sessionStorage.getItem(SS_STATE);
+    const shouldAutoMinimize = visits >= 3;
+    const startExpanded = sessionState 
+      ? sessionState === 'expanded' 
+      : !shouldAutoMinimize;
+    
+    setIsExpanded(startExpanded);
+  }, []);
+
+  // Improved typing animation with better error handling
+  const typeText = useCallback((text: string) => {
+    if (!text || text.trim() === '') {
+      setIsTyping(false);
+      setTypedText('');
       return;
     }
     
-    // Auto-show for first 3 visits
-    if (visits <= 3) {
-      setIsVisible(true);
-      setIsMinimized(false);
-      if (!savedState.hasSeenIntro) {
-        setShowIntro(true);
-        const introTimer = setTimeout(() => setShowIntro(false), 8000); // Hide intro after 8 seconds
-        saveRobotState({ ...savedState, hasSeenIntro: true });
-        return () => clearTimeout(introTimer);
-      }
-    } else {
-      // For veteran users, start minimized
-      setIsVisible(true);
-      setIsMinimized(true); // Always start minimized for users after 3rd visit
+    // Clear any existing typing animation first
+    if (typingTimerRef.current) {
+      clearInterval(typingTimerRef.current);
+      typingTimerRef.current = null;
     }
-
-    // Add event listeners for buttons and interactive elements only
-    const handleMouseEnter = (event: Event) => {
-      const element = event.target as Element;
-      currentHoveredElement.current = element;
-      
-      const info = getElementInfo(element);
-      if (info) {
-        setCurrentInfo(info);
-        
-        // Clear existing hide timer
-        if (hideTimerRef.current) {
-          clearTimeout(hideTimerRef.current);
+    
+    // Update tracking ref
+    currentTypingText.current = text;
+    
+    // Reset typing state
+    setIsTyping(true);
+    setTypedText('');
+    
+    // Improved timing calculation
+    const maxMs = Math.min(1200, 100 * text.length); // Slightly slower max
+    const minCps = 8; // Minimum characters per second
+    const maxCps = 15; // Maximum characters per second
+    const cps = Math.max(minCps, Math.min(maxCps, Math.floor(text.length / (maxMs / 1000))));
+    const delay = Math.max(50, 1000 / cps); // Minimum 50ms delay between characters
+    
+    let charIndex = 0;
+    
+    const typeNextChar = () => {
+      // Safety checks to prevent freezing
+      if (!typingTimerRef.current) return;
+      if (currentTypingText.current !== text) return; // Text changed, abort
+      if (charIndex >= text.length) {
+        // Finished typing
+        setTypedText(text);
+        if (typingTimerRef.current) {
+          clearInterval(typingTimerRef.current);
+          typingTimerRef.current = null;
         }
+        setIsTyping(false);
+        return;
       }
-    };
-
-    const handleMouseLeave = (event: Event) => {
-      const element = event.target as Element;
       
-      // Only clear if we're leaving the currently tracked element
-      if (currentHoveredElement.current === element) {
-        currentHoveredElement.current = null;
-        
-        // Set timer to hide tip after 1 second
-        hideTimerRef.current = setTimeout(() => {
-          setCurrentInfo(null);
-        }, 1000);
+      // Type next character
+      charIndex++;
+      const newText = text.slice(0, charIndex);
+      setTypedText(newText);
+      
+      // Check if we're done
+      if (charIndex >= text.length) {
+        if (typingTimerRef.current) {
+          clearInterval(typingTimerRef.current);
+          typingTimerRef.current = null;
+        }
+        setIsTyping(false);
       }
     };
-
-    // Function to add listeners to interactive elements
-    const addListenersToInteractiveElements = () => {
-      // Define selectors for interactive elements
-      const interactiveSelectors = [
-        'button',
-        'a',
-        'input[type="button"]',
-        'input[type="submit"]',
-        '[role="button"]',
-        '[data-robot-info]',
-        '.btn',
-        '.button',
-        '[onclick]',
-        'select',
-        'textarea',
-        'input',
-        '[tabindex]:not([tabindex="-1"])',
-        '.card:hover',
-        '.influencer-card',
-        '.coin-card',
-        '.pledge-card',
-        // Navigation specific selectors
-        'nav a',
-        'header a',
-        '[href*="/influencers"]',
-        '[href*="/about"]'
-      ];
-
-      interactiveSelectors.forEach(selector => {
-        const elements = document.querySelectorAll(selector);
-        elements.forEach(element => {
-          element.addEventListener('mouseenter', handleMouseEnter);
-          element.addEventListener('mouseleave', handleMouseLeave);
-        });
-      });
-    };
-
-    // Initial setup
-    addListenersToInteractiveElements();
-
-    // Re-run when DOM changes (for dynamically added elements)
-    const observer = new MutationObserver(() => {
-      addListenersToInteractiveElements();
-    });
-
-    observer.observe(document.body, { 
-      childList: true, 
-      subtree: true 
-    });
-
-    return () => {
-      // Cleanup
-      observer.disconnect();
-      if (hideTimerRef.current) {
-        clearTimeout(hideTimerRef.current);
-      }
-    };
-  }, [isCurrentPageExcluded]);
-
-  // Hide robot when navigating to excluded pages
-  useEffect(() => {
-    if (isCurrentPageExcluded) {
-      setIsVisible(false);
-      setCurrentInfo(null);
-    } else {
-      // Re-show robot when navigating back to included pages
-      const savedState = getRobotState();
-      if (visitCount <= 3) {
-        setIsVisible(true);
-        setIsMinimized(false);
-      } else {
-        setIsVisible(true);
-        setIsMinimized(true); // Always start minimized for veteran users
-      }
-    }
-  }, [location.pathname, isCurrentPageExcluded, visitCount]);
-
-  // Get information for element
-  const getElementInfo = (element: Element): ComponentInfo | null => {
-    // Check for data attributes first
-    const dataInfo = element.getAttribute('data-robot-info');
-    if (dataInfo && COMPONENT_INFO[dataInfo as keyof typeof COMPONENT_INFO]) {
-      return COMPONENT_INFO[dataInfo as keyof typeof COMPONENT_INFO];
-    }
-
-    // Check parent elements for data attributes
-    let parent = element.parentElement;
-    while (parent && parent !== document.body) {
-      const parentInfo = parent.getAttribute('data-robot-info');
-      if (parentInfo && COMPONENT_INFO[parentInfo as keyof typeof COMPONENT_INFO]) {
-        return COMPONENT_INFO[parentInfo as keyof typeof COMPONENT_INFO];
-      }
-      parent = parent.parentElement;
-    }
-
-    // Check class names for common patterns
-    const className = element.className?.toString() || '';
-    const classList = className.split(' ');
-
-    for (const cls of classList) {
-      if (cls.includes('button') || cls.includes('btn')) {
-        if (cls.includes('primary') || cls.includes('cta')) return COMPONENT_INFO['cta-button'];
-        if (cls.includes('wallet')) return COMPONENT_INFO['wallet-button'];
-        if (cls.includes('trade')) return COMPONENT_INFO['trade-button'];
-        if (cls.includes('pledge')) return COMPONENT_INFO['pledge-button'];
-      }
-      if (cls.includes('card')) {
-        if (cls.includes('influencer')) return COMPONENT_INFO['influencer-card'];
-        if (cls.includes('coin')) return COMPONENT_INFO['coin-card'];
-      }
-      if (cls.includes('progress')) return COMPONENT_INFO['progress-bar'];
-      if (cls.includes('badge')) return COMPONENT_INFO['status-badge'];
-      if (cls.includes('price')) return COMPONENT_INFO['price-display'];
-      if (cls.includes('volume')) return COMPONENT_INFO['volume-display'];
-    }
-
-    // Check for semantic elements
-    const tagName = element.tagName?.toLowerCase();
-    if (tagName === 'button') return COMPONENT_INFO['cta-button'];
-    if (tagName === 'input') return COMPONENT_INFO['amount-input'];
-    if (tagName === 'header') return COMPONENT_INFO['header'];
-    if (tagName === 'footer') return COMPONENT_INFO['footer'];
-
-    // Check for specific text content and routes
-    const textContent = element.textContent?.toLowerCase() || '';
-    const href = element.getAttribute('href')?.toLowerCase() || '';
     
-    // Navigation specific checks
-    if (textContent.includes('influencers') || href.includes('/influencers')) return COMPONENT_INFO['influencers-nav'];
-    if (textContent.includes('about') || href.includes('/about')) return COMPONENT_INFO['about-nav'];
-    
-    // Other button text checks
-    if (textContent.includes('connect wallet')) return COMPONENT_INFO['wallet-button'];
-    if (textContent.includes('sign in')) return COMPONENT_INFO['sign-in-button'];
-    if (textContent.includes('dashboard')) return COMPONENT_INFO['dashboard-button'];
-    if (textContent.includes('pre-invest')) return COMPONENT_INFO['pre-invest-button'];
-    if (textContent.includes('trade now')) return COMPONENT_INFO['trade-button'];
-    if (textContent.includes('show interest')) return COMPONENT_INFO['pledge-button'];
-    if (textContent.includes('create')) return COMPONENT_INFO['create-card-button'];
-    if (textContent.includes('deploy')) return COMPONENT_INFO['deploy-token-button'];
+    // Start the typing animation
+    typingTimerRef.current = setInterval(typeNextChar, delay);
+  }, []);
 
+  const clearTip = useCallback(() => {
+    // Clear the timer first
+    if (typingTimerRef.current) {
+      clearInterval(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+    
+    // Clear typing text reference
+    currentTypingText.current = '';
+    
+    // Start graceful fade-out but keep width until animation completes
+    setShowContent(false);
+    setIsContentFadingOut(true);
+    
+    // Reset text state after fade-out completes
+    setTimeout(() => {
+      setCurrentTip('');
+      setTypedText('');
+      setIsTyping(false);
+      
+      // Wait a bit more for width transition to complete before resetting fade state
+      setTimeout(() => {
+        setIsContentFadingOut(false);
+      }, 300); // Match width transition duration
+    }, 200); // Match the content fade transition duration
+  }, []);
+
+  // Get tip for element
+  const getTipFor = useCallback((element: Element | null): string | null => {
+    if (!element) return null;
+    
+    // Check data attribute first
+    const dataTip = element.getAttribute('data-cf-tip');
+    if (dataTip) return dataTip;
+    
+    // Check registry
+    for (const entry of CF_TIP_REGISTRY) {
+      if (element.matches(entry.selector)) {
+        return entry.tip;
+      }
+    }
+    
     return null;
-  };
+  }, []);
 
-  const toggleMinimized = () => {
-    const newMinimized = !isMinimized;
-    setIsMinimized(newMinimized);
-    const newState = { ...robotState, isMinimized: newMinimized };
-    setRobotState(newState);
-    saveRobotState(newState);
-  };
+  // Check if element is interactive
+  const isInteractiveElement = useCallback((element: Element | null): boolean => {
+    return element !== null && (
+      element.tagName === 'BUTTON' ||
+      element.getAttribute('role') === 'button' ||
+      element.classList.contains('btn') ||
+      element.tagName === 'A' ||
+      element.hasAttribute('onclick') ||
+      (element.hasAttribute('tabindex') && element.getAttribute('tabindex') !== '-1')
+    );
+  }, []);
 
-  const dismissRobot = () => {
-    setIsVisible(false);
-  };
-
-  const getRobotMessage = (): ComponentInfo => {
-    if (showIntro) {
-      return {
-        title: visitCount === 1 ? "Welcome to CoinFluence! 🚀" : "Welcome back!",
-        description: visitCount === 1 
-          ? "I'm your crypto investing assistant! Hover over buttons and interactive elements to learn what they do. I'll help guide you through the platform."
-          : "I'm here to help! Hover over buttons and interactive elements to see what they do. I'll be less intrusive as you get familiar with the platform.",
-        tips: "Click the minimize button to hide me, or the X to dismiss me completely."
-      };
+  // Event handlers with smooth transitions
+  const handleMouseEnter = useCallback((event: Event) => {
+    const element = (event.target as Element).closest('button, [role="button"], .btn, a, [data-cf-tip]');
+    
+    if (!element || !isInteractiveElement(element)) return;
+    
+    const tip = getTipFor(element);
+    if (!tip) return;
+    
+    // Store the current element
+    currentHoveredElement.current = element;
+    
+    // Clear ALL existing timers to prevent conflicts
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
     }
-
-    if (currentInfo) {
-      return currentInfo;
+    if (graceTimerRef.current) {
+      clearTimeout(graceTimerRef.current);
+      graceTimerRef.current = null;
     }
+    
+    // Debounced tip show
+    debounceTimerRef.current = setTimeout(() => {
+      // Only proceed if this element is still hovered and bot is expanded
+      if (currentHoveredElement.current === element && isExpanded) {
+        // Stop any existing typing animation
+        if (typingTimerRef.current) {
+          clearInterval(typingTimerRef.current);
+          typingTimerRef.current = null;
+        }
+        
+        // Clear typing text reference
+        currentTypingText.current = '';
+        
+        // Set new content and start animation
+        setCurrentTip(tip);
+        setShowContent(true);
+        setIsContentFadingOut(false);
+        
+        // Small delay to ensure state is set before typing starts
+        setTimeout(() => {
+          typeText(tip);
+        }, 10);
+      }
+    }, 150); // Slightly increased debounce to reduce rapid changes
+  }, [getTipFor, isInteractiveElement, typeText, isExpanded]);
 
-    if (visitCount <= 3) {
-      return {
-        title: "Crypto Investment Helper 🤖",
-        description: "Hover over buttons and interactive elements to learn what they do!",
-        tips: "I'll help guide you as you explore the platform!"
-      };
+  const handleMouseLeave = useCallback((event: Event) => {
+    const element = (event.target as Element).closest('button, [role="button"], .btn, a, [data-cf-tip]');
+    
+    // Only clear if we're leaving the currently tracked element
+    if (currentHoveredElement.current === element) {
+      currentHoveredElement.current = null;
+      
+      // Clear any pending enter timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      
+      // Grace period before clearing (but clear any existing grace timer first)
+      if (graceTimerRef.current) {
+        clearTimeout(graceTimerRef.current);
+      }
+      
+      graceTimerRef.current = setTimeout(() => {
+        // Only clear if no element is currently hovered
+        if (!currentHoveredElement.current) {
+          clearTip();
+        }
+        graceTimerRef.current = null;
+      }, 200); // Slightly longer grace period
     }
+  }, [clearTip]);
 
-    return {
-      title: "Investment Assistant",
-      description: "Hover over buttons and interactive elements for helpful tips and explanations.",
-      tips: "Click me anytime you need help navigating the platform!"
+  // Focus handlers for accessibility
+  const handleFocusIn = useCallback((event: Event) => {
+    handleMouseEnter(event);
+  }, [handleMouseEnter]);
+
+  const handleFocusOut = useCallback((event: Event) => {
+    handleMouseLeave(event);
+  }, [handleMouseLeave]);
+
+  // Event delegation with comprehensive cleanup
+  useEffect(() => {
+    document.addEventListener('mouseover', handleMouseEnter, true);
+    document.addEventListener('mouseout', handleMouseLeave, true);
+    document.addEventListener('focusin', handleFocusIn, true);
+    document.addEventListener('focusout', handleFocusOut, true);
+    
+    return () => {
+      document.removeEventListener('mouseover', handleMouseEnter, true);
+      document.removeEventListener('mouseout', handleMouseLeave, true);
+      document.removeEventListener('focusin', handleFocusIn, true);
+      document.removeEventListener('focusout', handleFocusOut, true);
+      
+      // Comprehensive cleanup to prevent memory leaks and race conditions
+      if (typingTimerRef.current) {
+        clearInterval(typingTimerRef.current);
+        typingTimerRef.current = null;
+      }
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      if (graceTimerRef.current) {
+        clearTimeout(graceTimerRef.current);
+        graceTimerRef.current = null;
+      }
+      
+      // Reset tracking refs
+      currentHoveredElement.current = null;
+      currentTypingText.current = '';
     };
-  };
+  }, [handleMouseEnter, handleMouseLeave, handleFocusIn, handleFocusOut]);
 
-  // Don't render robot on excluded pages
-  if (isCurrentPageExcluded || !isVisible) return null;
+  const toggleExpanded = useCallback(() => {
+    setIsExpanded((prev) => {
+      const next = !prev;
+      sessionStorage.setItem('cf_bot_state', next ? 'expanded' : 'minimized');
+      if (!next) {
+        setJustMinimized(true);
+        setTimeout(() => setJustMinimized(false), 600); // match new slower animation duration
+      }
+      return next;
+    });
+    // Clear everything when minimizing
+    clearTip();
+    currentHoveredElement.current = null;
+    currentTypingText.current = '';
+    setShowContent(false);
+    setIsContentFadingOut(false);
+    
+    // Focus management for accessibility
+    if (!isExpanded) {
+      setTimeout(() => {
+        const panel = document.getElementById('cf-assistant-panel');
+        panel?.focus();
+      }, 200);
+    }
+  }, [clearTip, isExpanded]);
 
-  const message = getRobotMessage();
-  const isVeteranUser = visitCount > 3;
+  // Apply theme variables
+  useEffect(() => {
+    Object.entries(cfTheme).forEach(([key, value]) => {
+      document.documentElement.style.setProperty(key, value);
+    });
+  }, []);
+
+  const shouldShowPulse = visitCount <= 2 && !isExpanded;
+  const isVeteranUser = visitCount >= 3;
 
   return (
-    <div className={`fixed z-50 transition-all duration-300 ease-in-out ${
-      isMinimized 
-        ? 'bottom-4 right-4' 
-        : 'bottom-4 right-4'
-    }`}>
-      {/* Main Robot Container */}
-      <div className={`bg-gradient-to-br from-primary/90 to-green-500/90 backdrop-blur-md border border-primary/30 rounded-2xl shadow-2xl transition-all duration-300 ${
-        isMinimized 
-          ? 'w-14 h-14 cursor-pointer hover:scale-110' 
-          : 'w-80 max-w-[90vw]'
-      }`}>
-        
-        {isMinimized ? (
-          // Minimized State
+    <div 
+      className="fixed bottom-6 right-6 z-[9999]"
+      style={{ 
+        fontFamily: 'system-ui, -apple-system, sans-serif'
+      }}
+    >
+      {isExpanded ? (
+        // Expanded Panel
+        <div 
+          className="rounded-2xl border overflow-hidden will-change-transform"
+          style={{
+            background: 'var(--cf-surface)',
+            borderColor: 'var(--cf-border)',
+            boxShadow: 'var(--cf-shadow)',
+            transformOrigin: 'bottom right',
+            animation: 'expandIn 260ms cubic-bezier(0.2, 0.9, 0.2, 1)',
+            transition: 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+            // Fixed width approach - calculate based on content
+            width: currentTip ? 
+              `${Math.min(420, Math.max(320, currentTip.length * 8 + 80))}px` : 
+              '360px',
+            maxWidth: 'min(420px, calc(100vw - 32px))'
+          }}
+        >
+          {/* Header */}
           <div 
-            onClick={toggleMinimized}
-            className="w-full h-full flex items-center justify-center group"
+            className="flex items-center justify-between px-3.5 py-3 border-b"
+            style={{
+              borderColor: 'var(--cf-border)'
+            }}
           >
-            <Bot className="w-7 h-7 text-black group-hover:animate-bounce" />
-            {currentInfo && (
-              <div className="absolute -top-2 -right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-            )}
-          </div>
-        ) : (
-          // Expanded State
-          <div className="p-4">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-black/20 rounded-full flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-black" />
-                </div>
-                <span className="font-semibold text-black text-sm">
-                  CF Assistant
-                </span>
-                {isVeteranUser && (
-                  <span className="text-xs bg-black/20 text-black px-2 py-1 rounded-full">
-                    Expert Mode
-                  </span>
-                )}
-              </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={toggleMinimized}
-                className="w-6 h-6 bg-black/20 hover:bg-black/30 rounded-full flex items-center justify-center transition-colors"
-                title="Minimize"
+            <div className="flex items-center gap-2">
+              <div 
+                className="w-8 h-8 rounded-full flex items-center justify-center border"
+                style={{
+                  background: 'linear-gradient(180deg, var(--cf-surface), #0a1012)',
+                  borderColor: 'var(--cf-border)'
+                }}
               >
-                <EyeOff className="w-3 h-3 text-black" />
-              </button>
+                <Bot className="w-5 h-5" style={{ color: 'var(--cf-green)' }} />
+              </div>
+              <span 
+                className="font-semibold text-sm"
+                style={{ color: 'var(--cf-text)' }}
+              >
+                CF Assistant
+              </span>
+              {isVeteranUser && (
+                <span 
+                  className="text-xs px-2 py-1 rounded-full border text-[10px]"
+                  style={{
+                    color: 'var(--cf-green)',
+                    borderColor: 'rgba(34, 227, 132, 0.3)',
+                    background: 'rgba(34, 227, 132, 0.1)'
+                  }}
+                >
+                  Expert Mode
+                </span>
+              )}
             </div>
+            <button
+              onClick={toggleExpanded}
+              className="w-6 h-6 rounded-full flex items-center justify-center hover:opacity-70 transition-opacity"
+              style={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                color: 'var(--cf-text)'
+              }}
+              aria-label="Minimize assistant"
+            >
+              –
+            </button>
           </div>
-
+          
           {/* Content */}
-          <div className="space-y-2">
-            <h3 className="font-bold text-black text-sm flex items-center gap-1">
-              {message.title}
-              {currentInfo && <Sparkles className="w-3 h-3" />}
-            </h3>
-            <p className="text-black/80 text-xs leading-relaxed">
-              {message.description}
-            </p>
-            {message.tips && (
-              <div className="bg-black/10 rounded-lg p-2 mt-2">
-                <p className="text-black/70 text-xs font-medium flex items-start gap-1">
-                  <Zap className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                  {message.tips}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Quick Stats for veteran users */}
-          {isVeteranUser && !currentInfo && (
-            <div className="mt-3 pt-3 border-t border-black/20">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="flex items-center gap-1 text-black/70">
-                  <Eye className="w-3 h-3" />
-                  <span>Expert Mode</span>
+          <div 
+            className="px-3.5 py-3.5 min-h-[64px] flex items-start gap-1.5"
+            style={{ 
+              background: 'var(--cf-surface)'
+            }}
+          >
+            <div className="flex-1 min-w-0">
+              {currentTip ? (
+                <div 
+                  className={`text-sm leading-5 transition-all duration-200 ease-in-out ${
+                    showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'
+                  }`}
+                  style={{ 
+                    color: 'var(--cf-text)',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'normal'
+                  }}
+                >
+                  {typedText}
+                  {isTyping && (
+                    <span 
+                      className="inline-block w-0.5 h-4 ml-0.5 animate-pulse"
+                      style={{ background: 'var(--cf-green)' }}
+                    />
+                  )}
                 </div>
-                <div className="flex items-center gap-1 text-black/70">
-                  <HelpCircle className="w-3 h-3" />
-                  <span>Helper Active</span>
+              ) : (
+                <div 
+                  className={`text-sm transition-all duration-200 ease-in-out ${
+                    showContent ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'
+                  }`}
+                  style={{ color: 'var(--cf-muted)' }}
+                >
+                  {isVeteranUser 
+                    ? 'Hover over buttons and elements for helpful tips.'
+                    : 'Hover over buttons to learn what they do!'
+                  }
                 </div>
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
+      ) : (
+        // Minimized Button
+        <button
+          onClick={toggleExpanded}
+          className={`w-14 h-14 rounded-full border flex items-center justify-center hover:scale-105 transition-all duration-200 ${
+            shouldShowPulse ? 'animate-pulse' : ''
+          } ${justMinimized ? 'cf-minimize-anim' : ''}`}
+          style={{
+            background: 'linear-gradient(180deg, var(--cf-surface), #0a1012)',
+            borderColor: 'var(--cf-border)',
+            boxShadow: 'var(--cf-shadow)'
+          }}
+          aria-label="Open assistant"
+          aria-expanded="false"
+        >
+          <Bot className="w-7 h-7" style={{ color: 'var(--cf-green)' }} />
+          {currentTip && (
+            <div 
+              className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-pulse"
+              style={{ background: '#ef4444' }}
+            />
+          )}
+        </button>
       )}
-    </div>
-  </div>
-)};
-
-// Utility function for easy integration
-export const addRobotInfo = (infoKey: string) => ({
-  'data-robot-info': infoKey
-});
-
-// HOC for wrapping components
-export const withRobotInfo = <P extends object>(
-  Component: React.ComponentType<P>, 
-  infoKey: string
-) => {
-  return (props: P) => (
-    <div data-robot-info={infoKey}>
-      <Component {...props} />
+      
+      <style>{`
+        @keyframes expandIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px) scale(0.96);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        
+        @keyframes cfMinimize {
+          0% {
+            opacity: 0;
+            transform: scale(0.94) translateY(4px);
+          }
+          60% {
+            opacity: 1;
+            transform: scale(1.005) translateY(-0.5px);
+          }
+          85% {
+            opacity: 1;
+            transform: scale(0.998) translateY(0.2px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+        
+        .cf-minimize-anim {
+          animation: cfMinimize 600ms cubic-bezier(0.25, 0.46, 0.45, 0.84);
+        }
+        
+        @media (prefers-reduced-motion: reduce) {
+          * {
+            animation: none !important;
+            transition: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
-}; 
+};
 
 export default CoinFluenceRobot;

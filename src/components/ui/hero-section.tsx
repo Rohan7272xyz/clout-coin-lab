@@ -81,6 +81,7 @@ const HeroSection = () => {
             size="lg"
             onClick={handlePreInvestClick}
             className="bg-primary text-primary-foreground hover:bg-primary/90 neon-glow-strong text-xl px-12 py-6 h-auto font-bold mb-4 group"
+            data-cf-tip="Access early investment opportunities in upcoming influencer tokens before they go live."
           >
             <Star className="w-6 h-6 mr-3 group-hover:rotate-12 transition-transform duration-300" />
             Pre-Invest Now

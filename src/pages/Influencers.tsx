@@ -439,17 +439,19 @@ const Influencers = () => {
                       <Button 
                         className={`w-full transition-all duration-300 ${
                           influencer.isLaunched 
-                            ? 'bg-primary hover:bg-primary/90 text-black font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-105' 
+                            ? 'bg-primary hover:bg-primary/90 text-black font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-105 trade-button' 
                             : influencer.thresholdMet
                             ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border-yellow-500/50 hover:border-yellow-500'
                             : influencer.isApproved
                             ? 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border-blue-500/50 hover:border-blue-500'
-                            : 'bg-zinc-800 hover:bg-zinc-700 text-gray-300 border-zinc-700'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-gray-300 border-zinc-700 pledge-button'
                         }`}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleInfluencerClick(influencer);
                         }}
+                        data-cf-tip={influencer.isLaunched ? 'Buy or sell this influencer token on the live market with real-time pricing.' : 'Show interest in this upcoming token before launch.'}
+                        aria-label={influencer.isLaunched ? 'Trade Now' : 'Show Interest'}
                       >
                         {influencer.isLaunched ? (
                           <>

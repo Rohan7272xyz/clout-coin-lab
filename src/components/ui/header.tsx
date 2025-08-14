@@ -73,7 +73,7 @@ const Header = () => {
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-center gap-10 max-w-6xl mx-auto">
           {/* Logo */}
-          <Link to="/" className="flex items-center group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 h-12">
+          <Link to="/" className="flex items-center group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 h-12" data-cf-tip="Return to the CoinFluence homepage." aria-label="Go to homepage">
             <img
               src="/20250805_1007_Modern Coinfluence Logo_simple_compose_01k1x8x0hheaaraepnewcd4d46.png"
               alt="CoinFluence Logo"
@@ -148,6 +148,8 @@ const Header = () => {
                             className="px-4 py-2 font-semibold hover:!text-black [&>svg]:hover:!text-black"
                             onClick={openConnectModal}
                             type="button"
+                            data-cf-tip="Connect your crypto wallet to start investing."
+                            aria-label="Connect Wallet"
                           >
                             <Zap className="w-4 h-4 mr-2" />
                             Connect Wallet
@@ -268,6 +270,8 @@ const Header = () => {
                 size="lg"
                 className="px-4 py-2 font-semibold border-primary text-primary hover:bg-primary hover:!text-black neon-glow"
                 asChild
+                data-cf-tip="Sign in to access your portfolio and saved preferences."
+                aria-label="Sign In"
               >
                 <Link to="/signin">Sign In</Link>
               </Button>
