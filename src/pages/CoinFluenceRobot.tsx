@@ -1,7 +1,9 @@
-// src/components/CoinFluenceRobot.tsx
-// Copy this file directly into your project
+// src/pages/CoinFluenceRobot.tsx
+// Fixed version that only shows tips when hovering over buttons/interactive elements
+// Now excludes sign-in and about pages
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Bot, X, HelpCircle, Eye, EyeOff, Sparkles, Zap } from 'lucide-react';
 
 // Component information database - customize this for your specific needs
@@ -16,6 +18,16 @@ const COMPONENT_INFO = {
     title: 'Navigation Link',
     description: 'Navigate between different sections of CoinFluence',
     tips: 'Explore Influencers to see all available tokens, or About to learn more'
+  },
+  'influencers-nav': {
+    title: 'Influencers Page',
+    description: 'Browse all available influencer tokens and investment opportunities',
+    tips: 'See live tokens you can trade now, plus upcoming launches you can show interest in'
+  },
+  'about-nav': {
+    title: 'About CoinFluence',
+    description: 'Learn about the platform, how it works, and our mission',
+    tips: 'Perfect starting point to understand how influencer token investing works'
   },
   'wallet-button': {
     title: 'Wallet Connection',
@@ -213,6 +225,9 @@ const COMPONENT_INFO = {
 const STORAGE_KEY = 'coinfluence-robot-visits';
 const ROBOT_STATE_KEY = 'coinfluence-robot-state';
 
+// Pages where the robot should NOT appear
+const EXCLUDED_PAGES = ['/signin', '/about'];
+
 const getVisitCount = (): number => {
   try {
     return parseInt(localStorage.getItem(STORAGE_KEY) || '0');
@@ -260,13 +275,18 @@ interface ComponentInfo {
 }
 
 const CoinFluenceRobot: React.FC = () => {
+  const location = useLocation();
   const [isVisible, setIsVisible] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [currentInfo, setCurrentInfo] = useState<ComponentInfo | null>(null);
   const [visitCount, setVisitCount] = useState(0);
   const [robotState, setRobotState] = useState<RobotState>({ isMinimized: false, hasSeenIntro: false });
   const [showIntro, setShowIntro] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const currentHoveredElement = useRef<Element | null>(null);
+
+  // Check if current page is excluded
+  const isCurrentPageExcluded = EXCLUDED_PAGES.includes(location.pathname);
 
   // Initialize on mount
   useEffect(() => {
@@ -275,6 +295,12 @@ const CoinFluenceRobot: React.FC = () => {
     
     setVisitCount(visits);
     setRobotState(savedState);
+    
+    // Don't show robot on excluded pages
+    if (isCurrentPageExcluded) {
+      setIsVisible(false);
+      return;
+    }
     
     // Auto-show for first 3 visits
     if (visits <= 3) {
@@ -289,39 +315,118 @@ const CoinFluenceRobot: React.FC = () => {
     } else {
       // For veteran users, start minimized
       setIsVisible(true);
-      setIsMinimized(savedState.isMinimized !== false); // Default to minimized for veterans
+      setIsMinimized(true); // Always start minimized for users after 3rd visit
     }
 
-    // Add global mouse move listener
-    const handleMouseMove = (e: MouseEvent) => {
-      // Clear existing timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-
-      // Get element under cursor
-      const element = e.target as HTMLElement;
-      const info = getElementInfo(element);
+    // Add event listeners for buttons and interactive elements only
+    const handleMouseEnter = (event: Event) => {
+      const element = event.target as Element;
+      currentHoveredElement.current = element;
       
+      const info = getElementInfo(element);
       if (info) {
         setCurrentInfo(info);
-        timeoutRef.current = setTimeout(() => {
-          setCurrentInfo(null);
-        }, 3000); // Hide after 3 seconds of no movement
+        
+        // Clear existing hide timer
+        if (hideTimerRef.current) {
+          clearTimeout(hideTimerRef.current);
+        }
       }
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+    const handleMouseLeave = (event: Event) => {
+      const element = event.target as Element;
+      
+      // Only clear if we're leaving the currently tracked element
+      if (currentHoveredElement.current === element) {
+        currentHoveredElement.current = null;
+        
+        // Set timer to hide tip after 1 second
+        hideTimerRef.current = setTimeout(() => {
+          setCurrentInfo(null);
+        }, 1000);
       }
     };
-  }, []);
+
+    // Function to add listeners to interactive elements
+    const addListenersToInteractiveElements = () => {
+      // Define selectors for interactive elements
+      const interactiveSelectors = [
+        'button',
+        'a',
+        'input[type="button"]',
+        'input[type="submit"]',
+        '[role="button"]',
+        '[data-robot-info]',
+        '.btn',
+        '.button',
+        '[onclick]',
+        'select',
+        'textarea',
+        'input',
+        '[tabindex]:not([tabindex="-1"])',
+        '.card:hover',
+        '.influencer-card',
+        '.coin-card',
+        '.pledge-card',
+        // Navigation specific selectors
+        'nav a',
+        'header a',
+        '[href*="/influencers"]',
+        '[href*="/about"]'
+      ];
+
+      interactiveSelectors.forEach(selector => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(element => {
+          element.addEventListener('mouseenter', handleMouseEnter);
+          element.addEventListener('mouseleave', handleMouseLeave);
+        });
+      });
+    };
+
+    // Initial setup
+    addListenersToInteractiveElements();
+
+    // Re-run when DOM changes (for dynamically added elements)
+    const observer = new MutationObserver(() => {
+      addListenersToInteractiveElements();
+    });
+
+    observer.observe(document.body, { 
+      childList: true, 
+      subtree: true 
+    });
+
+    return () => {
+      // Cleanup
+      observer.disconnect();
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+      }
+    };
+  }, [isCurrentPageExcluded]);
+
+  // Hide robot when navigating to excluded pages
+  useEffect(() => {
+    if (isCurrentPageExcluded) {
+      setIsVisible(false);
+      setCurrentInfo(null);
+    } else {
+      // Re-show robot when navigating back to included pages
+      const savedState = getRobotState();
+      if (visitCount <= 3) {
+        setIsVisible(true);
+        setIsMinimized(false);
+      } else {
+        setIsVisible(true);
+        setIsMinimized(true); // Always start minimized for veteran users
+      }
+    }
+  }, [location.pathname, isCurrentPageExcluded, visitCount]);
 
   // Get information for element
-  const getElementInfo = (element: HTMLElement): ComponentInfo | null => {
+  const getElementInfo = (element: Element): ComponentInfo | null => {
     // Check for data attributes first
     const dataInfo = element.getAttribute('data-robot-info');
     if (dataInfo && COMPONENT_INFO[dataInfo as keyof typeof COMPONENT_INFO]) {
@@ -366,8 +471,15 @@ const CoinFluenceRobot: React.FC = () => {
     if (tagName === 'header') return COMPONENT_INFO['header'];
     if (tagName === 'footer') return COMPONENT_INFO['footer'];
 
-    // Check for specific text content
+    // Check for specific text content and routes
     const textContent = element.textContent?.toLowerCase() || '';
+    const href = element.getAttribute('href')?.toLowerCase() || '';
+    
+    // Navigation specific checks
+    if (textContent.includes('influencers') || href.includes('/influencers')) return COMPONENT_INFO['influencers-nav'];
+    if (textContent.includes('about') || href.includes('/about')) return COMPONENT_INFO['about-nav'];
+    
+    // Other button text checks
     if (textContent.includes('connect wallet')) return COMPONENT_INFO['wallet-button'];
     if (textContent.includes('sign in')) return COMPONENT_INFO['sign-in-button'];
     if (textContent.includes('dashboard')) return COMPONENT_INFO['dashboard-button'];
@@ -395,10 +507,10 @@ const CoinFluenceRobot: React.FC = () => {
   const getRobotMessage = (): ComponentInfo => {
     if (showIntro) {
       return {
-        title: visitCount === 1 ? "Welcome to CoinFluence! 🚀" : `Welcome back! (Visit #${visitCount})`,
+        title: visitCount === 1 ? "Welcome to CoinFluence! 🚀" : "Welcome back!",
         description: visitCount === 1 
-          ? "I'm your crypto investing assistant! Hover over any element to learn what it does. I'll help guide you through the platform."
-          : "I'm here to help! Hover over elements to see what they do. After 3 visits, I'll be less intrusive but always available.",
+          ? "I'm your crypto investing assistant! Hover over buttons and interactive elements to learn what they do. I'll help guide you through the platform."
+          : "I'm here to help! Hover over buttons and interactive elements to see what they do. I'll be less intrusive as you get familiar with the platform.",
         tips: "Click the minimize button to hide me, or the X to dismiss me completely."
       };
     }
@@ -410,20 +522,20 @@ const CoinFluenceRobot: React.FC = () => {
     if (visitCount <= 3) {
       return {
         title: "Crypto Investment Helper 🤖",
-        description: "Hover over buttons, cards, and other elements to learn what they do!",
-        tips: `Visit ${visitCount} of 3 - I'll be less chatty after this 😊`
+        description: "Hover over buttons and interactive elements to learn what they do!",
+        tips: "I'll help guide you as you explore the platform!"
       };
     }
 
     return {
       title: "Investment Assistant",
-      description: "Hover over elements for helpful tips and explanations.",
+      description: "Hover over buttons and interactive elements for helpful tips and explanations.",
       tips: "Click me anytime you need help navigating the platform!"
     };
   };
 
-  // Always visible, but minimized when isMinimized is true
-  // if (!isVisible) return null;
+  // Don't render robot on excluded pages
+  if (isCurrentPageExcluded || !isVisible) return null;
 
   const message = getRobotMessage();
   const isVeteranUser = visitCount > 3;
@@ -466,7 +578,7 @@ const CoinFluenceRobot: React.FC = () => {
                 </span>
                 {isVeteranUser && (
                   <span className="text-xs bg-black/20 text-black px-2 py-1 rounded-full">
-                    Veteran User
+                    Expert Mode
                   </span>
                 )}
               </div>
@@ -506,11 +618,11 @@ const CoinFluenceRobot: React.FC = () => {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="flex items-center gap-1 text-black/70">
                   <Eye className="w-3 h-3" />
-                  <span>Visit #{visitCount}</span>
+                  <span>Expert Mode</span>
                 </div>
                 <div className="flex items-center gap-1 text-black/70">
                   <HelpCircle className="w-3 h-3" />
-                  <span>Helper Mode</span>
+                  <span>Helper Active</span>
                 </div>
               </div>
             </div>
