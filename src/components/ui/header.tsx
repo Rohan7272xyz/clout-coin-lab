@@ -71,7 +71,7 @@ const Header = () => {
   return (
     <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-center gap-12 max-w-6xl mx-auto">
+        <div className="flex items-center justify-center gap-10 max-w-6xl mx-auto">
           {/* Logo */}
           <Link to="/" className="flex items-center group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 h-12">
             <img

@@ -10,9 +10,10 @@ import { config } from "./wagmiConfig";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import ScrollToTop from "@/components/ScrollToTop";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import CoinFluenceRobot from '@/pages/CoinFluenceRobot';
 
 // ADD: RobotAssistant
-import RobotAssistant from "@/components/onboarding/RobotAssistant";
+// import RobotAssistant from "@/components/onboarding/RobotAssistant";
 
 // Pages
 import Index from "./pages/Index";
@@ -45,7 +46,7 @@ const App = () => (
               <ScrollToTop />
 
               {/* ADD: Mount once, outside <Routes>, inside providers */}
-              <RobotAssistant />
+              <CoinFluenceRobot />
 
               <Routes>
                 {/* Public Routes */}
@@ -93,7 +94,7 @@ const App = () => (
                     </ProtectedRoute>
                   } 
                 />
-                
+
                 {/* Admin-only Token Factory */}
                 <Route 
                   path="/admin/token-factory" 

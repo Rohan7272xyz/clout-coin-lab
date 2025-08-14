@@ -62,7 +62,7 @@ const HeroSection = () => {
         
         {/* Subtitle */}
         <p 
-          className={`text-xl md:text-2xl lg:text-3xl text-gray-light mb-3 max-w-4xl mx-auto leading-relaxed transition-all duration-700 ${
+          className={`mb-4 text-xl md:text-2xl lg:text-3xl text-gray-light mb-3 max-w-4xl mx-auto leading-relaxed transition-all duration-700 ${
             titleAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
           style={{ transitionDelay: '400ms' }}
@@ -135,13 +135,6 @@ const HeroSection = () => {
           <p className="text-gray-muted text-sm">
             Ready to revolutionize how you invest in creators and influencers?
           </p>
-        </div>
-      </div>
-
-      {/* Scroll indicator */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
-        <div className="w-6 h-10 border-2 border-primary/50 rounded-full flex justify-center">
-          <div className="w-1 h-3 bg-primary rounded-full mt-2 animate-pulse"></div>
         </div>
       </div>
     </section>

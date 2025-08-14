@@ -2,7 +2,29 @@
 import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { pledgeApi } from '@/lib/pledge/api';
-import type { InfluencerPledgeData, UserPledge, PlatformStats } from '@/lib/pledge/types';
+import type { InfluencerPledgeData, UserPledge, PlatformStats, InfluencerCategory } from '@/lib/pledge/types';
+
+// Utility to map category string to InfluencerCategory
+const validCategories = [
+  'Cryptocurrency & Blockchain',
+  'Technology & Innovation',
+  'Fitness & Wellness',
+  'Entertainment & Media',
+  'Business & Finance',
+  'Gaming & Esports',
+  'Fashion & Lifestyle',
+  'Education & Learning',
+  'Food & Cooking',
+  'Travel & Adventure',
+  'Art & Design',
+  'Music & Audio',
+  'Sports & Athletics',
+  'Science & Research',
+  'Politics & Current Events',
+];
+function toInfluencerCategory(category: any): InfluencerCategory | undefined {
+  return validCategories.includes(category) ? category as InfluencerCategory : undefined;
+}
 
 export const useInfluencers = () => {
   const [influencers, setInfluencers] = useState<InfluencerPledgeData[]>([]);
@@ -14,7 +36,33 @@ export const useInfluencers = () => {
       setLoading(true);
       setError(null);
       const data = await pledgeApi.getAllInfluencers();
-      setInfluencers(data);
+      // Transform category to InfluencerCategory (or undefined if not valid)
+      const validCategories = [
+        'Cryptocurrency & Blockchain',
+        'Technology & Innovation',
+        'Fitness & Wellness',
+        'Entertainment & Media',
+        'Business & Finance',
+        'Gaming & Esports',
+        'Fashion & Lifestyle',
+        'Education & Learning',
+        'Food & Cooking',
+        'Travel & Adventure',
+        'Art & Design',
+        'Music & Audio',
+        'Sports & Athletics',
+        'Science & Research',
+        'Politics & Current Events',
+      ];
+      function toInfluencerCategory(category: any): InfluencerCategory | undefined {
+        return validCategories.includes(category) ? category as InfluencerCategory : undefined;
+      }
+      setInfluencers(
+        data.map((inf: any) => ({
+          ...inf,
+          category: toInfluencerCategory(inf.category),
+        }))
+      );
     } catch (err) {
       console.error('Error loading influencers:', err);
       setError(err instanceof Error ? err.message : 'Failed to load influencers');
@@ -45,7 +93,10 @@ export const useInfluencer = (address: string) => {
       setLoading(true);
       setError(null);
       const data = await pledgeApi.getInfluencer(address);
-      setInfluencer(data);
+      setInfluencer({
+        ...data,
+        category: toInfluencerCategory(data.category),
+      });
     } catch (err) {
       console.error('Error loading influencer:', err);
       setError(err instanceof Error ? err.message : 'Failed to load influencer');
@@ -80,8 +131,13 @@ export const useUserPledges = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await pledgeApi.getUserPledges(address);
-      setPledges(data);
+      const { pledges } = await pledgeApi.getUserPledges(address);
+      setPledges(
+        pledges.map((pledge: any) => ({
+          ...pledge,
+          category: toInfluencerCategory(pledge.category),
+        }))
+      );
     } catch (err) {
       console.error('Error loading user pledges:', err);
       setError(err instanceof Error ? err.message : 'Failed to load pledges');
@@ -113,8 +169,18 @@ export const usePlatformStats = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await pledgeApi.getPlatformStats();
-      setStats(data);
+      // The API returns snake_case keys, so we type as 'any' and map to our camelCase PlatformStats
+      const data: any = await pledgeApi.getPlatformStats();
+      const mappedStats = {
+        totalInfluencers: data.total_influencers,
+        launchedTokens: data.launched_tokens,
+        approvedInfluencers: data.approved_influencers,
+        totalPledgedETH: data.total_eth_pledged,
+        totalPledgedUSDC: data.total_usdc_pledged,
+        totalPledgers: data.total_pledgers,
+        pendingApprovals: data.pending_approvals ?? 0,
+      };
+      setStats(mappedStats);
     } catch (err) {
       console.error('Error loading platform stats:', err);
       setError(err instanceof Error ? err.message : 'Failed to load stats');
