@@ -1,4 +1,4 @@
-// Backend/routes/influencerRoutes.js - Phase 4B: Real Token Deployment Integration + Enhanced Coin Details
+// Backend/routes/influencerRoutes.js - Phase 5B: AUTOMATIC LIQUIDITY ON DEPLOYMENT
 const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
@@ -610,7 +610,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// NEW: POST /api/influencer/:id/deploy-real-token - Deploy real token to blockchain (Admin only)
+// 🚀 ENHANCED: POST /api/influencer/:id/deploy-real-token - Deploy token + AUTOMATIC LIQUIDITY (Admin only)
 router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -619,10 +619,13 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
       tokenName,
       tokenSymbol,
       totalSupply = 1000000,
-      network = 'base-sepolia' // Changed default to base-sepolia
+      network = 'base-sepolia',
+      autoCreateLiquidity = true, // NEW: Auto-liquidity enabled by default
+      liquiditySettings = {} // NEW: Custom liquidity settings
     } = req.body;
 
     console.log(`🚀 Deploying REAL token for influencer ID: ${id} on ${network} network`);
+    console.log(`🌊 Auto-create liquidity: ${autoCreateLiquidity}`);
     
     // Validate required fields
     if (!walletAddress || !tokenName || !tokenSymbol) {
@@ -641,16 +644,18 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
 
     const influencer = influencerResult.rows[0];
     
-    // Call real Hardhat deployment script - NOW USES FIXED VERSION
+    // PHASE 1: Deploy the token contract
+    console.log(`📦 Phase 1: Deploying token contract...`);
     const deploymentResult = await deployRealToken(tokenName, tokenSymbol, walletAddress, network);
     
     if (!deploymentResult.success) {
       throw new Error(deploymentResult.error || 'Token deployment failed');
     }
 
-    console.log(`✅ Real token deployed successfully:`, deploymentResult);
+    console.log(`✅ Token deployed successfully:`, deploymentResult.tokenAddress);
 
-    // Update influencer with wallet address and token details
+    // PHASE 2: Update database with token deployment info
+    console.log(`💾 Phase 2: Updating database...`);
     const updateResult = await db.query(`
       UPDATE influencers 
       SET 
@@ -664,7 +669,7 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
       RETURNING *
     `, [id, walletAddress, tokenName, tokenSymbol]);
 
-    // FIXED: Create token record in tokens table with correct schema
+    // Create/update token record in tokens table
     try {
       await db.query(`
         INSERT INTO tokens (
@@ -693,7 +698,7 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
         id,                                    // influencer_id
         tokenName,                            // name
         tokenSymbol,                          // ticker
-        'live',                               // status
+        'deployed',                           // status (changed from 'live' to 'deployed')
         deploymentResult.tokenAddress,        // contract_address
         totalSupply,                          // total_supply
         deploymentResult.chainId || 84532,    // chain_id (Base Sepolia)
@@ -706,7 +711,39 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
       // Don't fail the entire deployment if token record creation fails
     }
 
-    // Use tokenCreationService for comprehensive database updates
+    // PHASE 3: NEW - AUTOMATED LIQUIDITY CREATION
+    let liquidityResult = null;
+    if (autoCreateLiquidity) {
+      try {
+        console.log(`🌊 Phase 3: Creating automated liquidity...`);
+        
+        liquidityResult = await liquidityAutomationService.createLiquidityForToken({
+          tokenAddress: deploymentResult.tokenAddress,
+          tokenSymbol,
+          tokenName,
+          totalSupply,
+          network,
+          influencerId: id,
+          customSettings: liquiditySettings
+        });
+
+        console.log(`✅ Automated liquidity created successfully:`, liquidityResult.poolAddress);
+
+      } catch (liquidityError) {
+        console.error(`⚠️ Liquidity automation failed:`, liquidityError.message);
+        
+        // Don't fail the entire deployment if liquidity creation fails
+        liquidityResult = {
+          success: false,
+          error: liquidityError.message,
+          message: 'Token deployed successfully but liquidity creation failed. You can create liquidity manually later.'
+        };
+      }
+    } else {
+      console.log(`⏭️ Phase 3: Skipping liquidity creation (autoCreateLiquidity = false)`);
+    }
+
+    // PHASE 4: Enhanced database updates with tokenCreationService
     try {
       await tokenCreationService.createInfluencerToken({
         influencerId: id,
@@ -720,13 +757,13 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
         deployedBy: req.dbUser.email
       });
     } catch (serviceError) {
-      console.log('Note: TokenCreationService may need updates for real deployment integration');
+      console.log('Note: TokenCreationService may need updates for liquidity integration');
     }
 
-    // Log token creation event
+    // PHASE 5: Log comprehensive deployment event
     await db.query(`
       INSERT INTO pledge_events (event_type, influencer_address, event_data)
-      VALUES ('token_deployed', $1, $2)
+      VALUES ('token_deployed_with_automation', $1, $2)
     `, [
       walletAddress,
       JSON.stringify({
@@ -738,28 +775,41 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
         token_address: deploymentResult.tokenAddress,
         tx_hash: deploymentResult.txHash,
         network: network,
-        deployment_type: 'real_blockchain'
+        deployment_type: 'real_blockchain_with_automation',
+        auto_liquidity_enabled: autoCreateLiquidity,
+        liquidity_success: liquidityResult?.success || false,
+        pool_address: liquidityResult?.poolAddress || null,
+        liquidity_tx_hash: liquidityResult?.txHash || null
       })
     ]);
 
-    console.log(`🎉 Real token deployment completed for ${influencer.name} on ${network}`);
+    console.log(`🎉 Complete deployment workflow finished for ${influencer.name} on ${network}`);
 
-    res.json({
+    // ENHANCED RESPONSE with liquidity information
+    const response = {
       success: true,
       data: {
         influencer: updateResult.rows[0],
         tokenAddress: deploymentResult.tokenAddress,
         txHash: deploymentResult.txHash,
         network: network,
-        deploymentType: 'real_blockchain'
+        deploymentType: 'real_blockchain_with_automation',
+        
+        // NEW: Liquidity information
+        autoLiquidityEnabled: autoCreateLiquidity,
+        liquidityResult: liquidityResult
       },
-      message: `Real token ${tokenSymbol} deployed successfully to ${network} blockchain for ${influencer.name}`
-    });
+      message: autoCreateLiquidity && liquidityResult?.success
+        ? `🎉 COMPLETE SUCCESS! Token ${tokenSymbol} deployed and liquidity pool created automatically on ${network}. Token is now immediately tradeable!`
+        : `Real token ${tokenSymbol} deployed successfully to ${network} blockchain for ${influencer.name}. ${liquidityResult?.message || ''}`
+    };
+
+    res.json(response);
 
   } catch (error) {
-    console.error('❌ Error deploying real token:', error);
+    console.error('❌ Error in enhanced token deployment:', error);
     
-    // Enhanced error handling for common blockchain deployment issues
+    // Enhanced error handling for different failure points
     let errorMessage = error.message || 'Failed to deploy real token';
     let statusCode = 500;
 
@@ -772,13 +822,17 @@ router.post('/:id/deploy-real-token', requireAuth, requireAdmin, async (req, res
     } else if (error.message.includes('timeout')) {
       errorMessage = 'Deployment timeout. The transaction may still be pending.';
       statusCode = 408;
+    } else if (error.message.includes('liquidity')) {
+      errorMessage = 'Token deployed but liquidity creation failed. ' + error.message;
+      statusCode = 206; // Partial success
     }
 
     res.status(statusCode).json({ 
       success: false, 
       error: errorMessage,
       details: error.message,
-      network: req.body.network || 'unknown'
+      network: req.body.network || 'unknown',
+      phase: error.phase || 'unknown'
     });
   }
 });
@@ -1334,7 +1388,6 @@ router.get('/coin/:identifier', async (req, res) => {
     });
   }
 });
-
 
 // NEW ENDPOINT: Check liquidity status for any token
 router.get('/:id/liquidity-status', async (req, res) => {
